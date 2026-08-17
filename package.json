@@ -1,6 +1,14 @@
 {
   "name": "@tscircuit/via-stitch-solver",
   "main": "dist/index.js",
+  "types": "lib/index.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "version": "0.0.1",
   "scripts": {
     "format": "biome format . --write",
