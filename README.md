@@ -62,6 +62,23 @@ const reinforcedCircuitJson = [
 The default layers are `top` and `bottom`. Copper is covered with solder mask
 unless `coveredWithSolderMask: false` is explicitly requested.
 
+## Example circuits
+
+The repository includes five post-processed tscircuit examples copied from the
+core integration fixture. Each uses 0.8 mm power traces, three or four passive
+components, and a different chip footprint:
+
+- SOIC-8 with 3 passives
+- SOIC-16 with 4 passives
+- QFP-16 with 3 passives
+- QFN-32 with 4 passives
+- TSSOP-20 with 3 passives
+
+Their committed PCB SVG snapshots show the complete routed VCC corridors poured
+on the top and bottom layers with stitching vias distributed along the route.
+The circuit definitions are in
+[`examples/via-stitching-power-circuits.tsx`](examples/via-stitching-power-circuits.tsx).
+
 ## Design scope
 
 This solver is intended for ordinary DC power rails. High-dv/dt switching nodes
