@@ -61,7 +61,3 @@ const reinforcedCircuitJson = [
 
 The default layers are `top` and `bottom`. Copper is covered with solder mask
 unless `coveredWithSolderMask: false` is explicitly requested.
-
-
-bun start
-```
