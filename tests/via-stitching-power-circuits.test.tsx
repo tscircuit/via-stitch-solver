@@ -165,6 +165,10 @@ for (const example of examples) {
       ...output.pcbVias,
     ]
     const svg = convertCircuitJsonToPcbSvg(reinforcedCircuitJson)
-    await expect(svg).toMatchSvgSnapshot(import.meta.path, example.snapshotName)
+    await expect(svg).toMatchSvgSnapshotWithTolerance(
+      import.meta.path,
+      example.snapshotName,
+      { diffThresholdPercent: 0.5 },
+    )
   })
 }

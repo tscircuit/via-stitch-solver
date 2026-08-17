@@ -23,7 +23,9 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
+    "@resvg/resvg-js": "^2.6.2",
     "@tscircuit/core": "^0.0.1697",
+    "@tscircuit/image-utils": "^0.0.8",
     "@types/bun": "latest",
     "bun-match-svg": "^0.0.16",
     "circuit-json": "^0.0.469",
