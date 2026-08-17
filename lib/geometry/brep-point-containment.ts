@@ -49,6 +49,18 @@ const isPointInShape = (point: Point, shape: BRepShape) =>
 const isPointInShapeUnion = (point: Point, shapes: BRepShape[]) =>
   shapes.some((shape) => isPointInShape(point, shape))
 
+export const getShapeUnionBounds = (shapes: BRepShape[]) => {
+  const vertices = shapes.flatMap((shape) => shape.outer_ring.vertices)
+  if (vertices.length === 0) return undefined
+
+  return {
+    minX: Math.min(...vertices.map((vertex) => vertex.x)),
+    maxX: Math.max(...vertices.map((vertex) => vertex.x)),
+    minY: Math.min(...vertices.map((vertex) => vertex.y)),
+    maxY: Math.max(...vertices.map((vertex) => vertex.y)),
+  }
+}
+
 export const isViaAnnulusInsideShapeUnion = ({
   center,
   radius,
@@ -59,8 +71,8 @@ export const isViaAnnulusInsideShapeUnion = ({
   shapes: BRepShape[]
 }) => {
   const samplePoints: Point[] = [center]
-  for (let sampleIndex = 0; sampleIndex < 12; sampleIndex++) {
-    const angle = (sampleIndex / 12) * Math.PI * 2
+  for (let sampleIndex = 0; sampleIndex < 32; sampleIndex++) {
+    const angle = (sampleIndex / 32) * Math.PI * 2
     samplePoints.push({
       x: center.x + Math.cos(angle) * radius,
       y: center.y + Math.sin(angle) * radius,

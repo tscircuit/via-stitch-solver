@@ -26,9 +26,7 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
-    "@resvg/resvg-js": "^2.6.2",
     "@tscircuit/core": "^0.0.1697",
-    "@tscircuit/image-utils": "^0.0.8",
     "@types/bun": "latest",
     "bun-match-svg": "^0.0.16",
     "circuit-json": "^0.0.469",
@@ -44,10 +42,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@tscircuit/circuit-json-util": "^0.0.106",
-    "@tscircuit/copper-pour-solver": "^0.0.47",
-    "@tscircuit/manifold-2d": "^0.0.6",
-    "@tscircuit/solver-utils": "^0.0.19",
-    "circuit-json-to-connectivity-map": "^0.0.27"
+    "@tscircuit/solver-utils": "^0.0.19"
   }
 }

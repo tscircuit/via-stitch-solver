@@ -1,14 +1,12 @@
 import type React from "react"
 
-const usage = `await initializeViaStitchSolver()
-
-const solver = new ViaStitchSolver({
+const usage = `const solver = new ViaStitchSolver({
   circuitJson,
-  options: { minimumPourWidth: 1.8, viaPitch: 2 },
+  options: { viaPitch: 2, pourEdgeClearance: 0.2 },
 })
 
 solver.solve()
-const { pcbCopperPours, pcbVias } = solver.getOutput()`
+const { pcbVias } = solver.getOutput()`
 
 export default function WelcomePage() {
   return (
@@ -16,8 +14,8 @@ export default function WelcomePage() {
       <p style={styles.eyebrow}>tscircuit geometry</p>
       <h1 style={styles.title}>@tscircuit/via-stitch-solver</h1>
       <p style={styles.lede}>
-        Pour the complete routed power corridor on two layers and add legal
-        stitching vias wherever both copper regions overlap.
+        Place a clearance-aware via grid wherever existing same-net copper pours
+        overlap on two PCB layers.
       </p>
       <h2>Install</h2>
       <pre style={styles.pre}>
