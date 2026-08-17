@@ -13,21 +13,21 @@ import type {
   SourceNet,
   SourceTrace,
 } from "circuit-json"
-import { isViaAnnulusInsideShapeUnion } from "lib/geometry/brep-point-containment"
-import { createCorridorOutlines } from "lib/geometry/corridor-outlines"
+import { isViaAnnulusInsideShapeUnion } from "../geometry/brep-point-containment"
+import { createCorridorOutlines } from "../geometry/corridor-outlines"
 import {
   getMaximumWireWidth,
   getTopBottomTransitionCount,
   getTraceCenterline,
   sampleCenterline,
-} from "lib/geometry/trace-centerline"
+} from "../geometry/trace-centerline"
 import type {
   ResolvedViaStitchSolverOptions,
   ViaStitchPcbVia,
   ViaStitchSolverInput,
   ViaStitchSolverOptions,
   ViaStitchSolverOutput,
-} from "lib/types"
+} from "../types"
 
 interface PowerTraceContext {
   pcbTrace: PcbTrace
