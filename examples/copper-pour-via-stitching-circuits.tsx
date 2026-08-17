@@ -16,7 +16,7 @@ const CopperPourViaStitchingCircuit = ({
     <board width="28mm" height="22mm">
       <pcbnotetext
         pcbX={0}
-        pcbY={10}
+        pcbY={9}
         fontSize={0.55}
         text={`${circuitLabel}: top and bottom GND pours are connected by a regular stitching-via grid`}
       />

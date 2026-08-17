@@ -1,7 +1,6 @@
 import { BaseSolver } from "@tscircuit/solver-utils"
 import type {
   BRepShape,
-  LayerRef,
   PcbCopperPourBRep,
   PcbTrace,
   PcbVia,
@@ -189,11 +188,6 @@ const getGridCoordinates = ({
   return coordinates
 }
 
-const getPoursForLayer = (context: CopperPourPairContext, layer: LayerRef) =>
-  String(context.fromLayerPours[0]?.layer) === String(layer)
-    ? context.fromLayerPours
-    : context.toLayerPours
-
 export class ViaStitchSolver extends BaseSolver {
   private readonly options: ResolvedViaStitchSolverOptions
   private readonly copperPourPairContexts: CopperPourPairContext[]
@@ -250,10 +244,10 @@ export class ViaStitchSolver extends BaseSolver {
 
   private processCopperPourPair(context: CopperPourPairContext): void {
     const [fromLayer, toLayer] = this.options.layers
-    const fromLayerShapes = getPoursForLayer(context, fromLayer).map(
+    const fromLayerShapes = context.fromLayerPours.map(
       (copperPour) => copperPour.brep_shape,
     )
-    const toLayerShapes = getPoursForLayer(context, toLayer).map(
+    const toLayerShapes = context.toLayerPours.map(
       (copperPour) => copperPour.brep_shape,
     )
     const fromBounds = getShapeUnionBounds(fromLayerShapes)
