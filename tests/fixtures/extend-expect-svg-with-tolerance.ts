@@ -61,6 +61,15 @@ async function toMatchSvgSnapshotWithTolerance(
     process.argv.includes("--update-snapshots") ||
     process.argv.includes("-u") ||
     Boolean(process.env.BUN_UPDATE_SNAPSHOTS)
+  const forceUpdateSnapshot = Boolean(process.env.FORCE_BUN_UPDATE_SNAPSHOTS)
+
+  if (forceUpdateSnapshot) {
+    fs.writeFileSync(snapshotPath, received)
+    return {
+      message: () => `Snapshot force-updated at ${snapshotPath}`,
+      pass: true,
+    }
+  }
 
   if (snapshotMatches) {
     return {

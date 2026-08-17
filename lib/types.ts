@@ -17,9 +17,9 @@ export interface ViaStitchSolverOptions {
   includeGroundNets?: boolean
   /** Layers receiving the overlapping corridor pours and stitching vias. */
   layers?: readonly [LayerRef, LayerRef]
-  /** Minimum final corridor width in millimetres. */
+  /** Minimum final corridor width in millimetres. Defaults to 1.4 mm. */
   minimumPourWidth?: number
-  /** Copper added on each side of the widest routed wire in millimetres. */
+  /** Copper added on each side of the widest routed wire. Defaults to 0.3 mm. */
   pourPadding?: number
   /** Clearance from unrelated pads/plated holes in millimetres. */
   padMargin?: number

@@ -109,7 +109,8 @@ test("covers every segment of a route with repeated layer transitions", async ()
     circuitJson: solverCircuitJson,
     options: {
       pcbTraceIds: [selectedPowerTrace.pcb_trace_id],
-      minimumPourWidth: 2,
+      minimumPourWidth: 1.4,
+      pourPadding: 0.3,
       viaPitch: 1.5,
       endpointClearance: 0.75,
     },

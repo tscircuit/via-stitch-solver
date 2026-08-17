@@ -8,7 +8,8 @@ test("pours and stitches the complete routed power corridor", async () => {
   const solver = new ViaStitchSolver({
     circuitJson,
     options: {
-      minimumPourWidth: 1.8,
+      minimumPourWidth: 1.4,
+      pourPadding: 0.3,
       viaPitch: 2,
     },
   })
