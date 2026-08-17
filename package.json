@@ -1,12 +1,16 @@
 {
   "name": "@tscircuit/via-stitch-solver",
-  "main": "dist/index.js",
+  "main": "lib/index.ts",
+  "module": "lib/index.ts",
   "types": "lib/index.ts",
+  "files": [
+    "lib"
+  ],
   "exports": {
     ".": {
       "types": "./lib/index.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./lib/index.ts",
+      "default": "./lib/index.ts"
     }
   },
   "version": "0.0.1",
@@ -17,7 +21,6 @@
     "cosmos": "react-cosmos",
     "build:site": "cosmos-export",
     "build": "tsup-node lib/index.ts --dts --format esm",
-    "prepare": "bun run build",
     "typecheck": "tsc --noEmit"
   },
   "type": "module",
@@ -41,8 +44,10 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@tscircuit/circuit-json-util": "^0.0.106",
     "@tscircuit/copper-pour-solver": "^0.0.47",
     "@tscircuit/manifold-2d": "^0.0.6",
-    "@tscircuit/solver-utils": "^0.0.19"
+    "@tscircuit/solver-utils": "^0.0.19",
+    "circuit-json-to-connectivity-map": "^0.0.27"
   }
 }
