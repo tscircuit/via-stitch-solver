@@ -15,7 +15,9 @@ The solver does not create or reshape copper pours. It:
 5. Emits `pcb_via` elements connected to the stitched net.
 
 This is the usual copper-pour stitching operation used for top and bottom GND
-planes. It also works for any other net that already has overlapping pours.
+planes. The pours can cover the board or use fixed convex/concave polygon
+outlines; vias are emitted only inside their actual overlapping copper. It also
+works for any other net that already has overlapping pours.
 
 ## Install
 
