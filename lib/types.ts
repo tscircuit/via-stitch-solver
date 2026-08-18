@@ -17,6 +17,8 @@ export interface ViaStitchSolverOptions {
   viaOuterDiameter?: number
   /** Copper required beyond the via annulus on both stitched layers. */
   pourEdgeClearance?: number
+  /** Clearance from component bounds, pads, plated holes, and board holes. */
+  obstacleClearance?: number
   /** Minimum centre distance from existing or newly-created vias. */
   minimumViaSeparation?: number
   /** Board-world origin used to align the via grid. */
@@ -46,6 +48,7 @@ export interface ResolvedViaStitchSolverOptions {
   viaHoleDiameter: number
   viaOuterDiameter: number
   pourEdgeClearance: number
+  obstacleClearance: number
   minimumViaSeparation: number
   gridOrigin: Point
   isTented: boolean

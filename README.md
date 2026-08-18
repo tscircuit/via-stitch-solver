@@ -10,8 +10,8 @@ The solver does not create or reshape copper pours. It:
 2. Builds a deterministic via grid over their shared bounds.
 3. Keeps a candidate only when the complete via annulus and requested edge
    clearance fit inside copper on both layers.
-4. Avoids existing routing vias, explicit vias, and newly-created stitching
-   vias.
+4. Avoids component bounds, pads, plated holes, board holes, existing routing
+   vias, explicit vias, and newly-created stitching vias.
 5. Emits `pcb_via` elements connected to the stitched net.
 
 This is the usual copper-pour stitching operation used for top and bottom GND
@@ -36,6 +36,7 @@ const solver = new ViaStitchSolver({
     viaHoleDiameter: 0.3,
     viaOuterDiameter: 0.6,
     pourEdgeClearance: 0.2,
+    obstacleClearance: 0.2,
   },
 })
 

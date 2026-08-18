@@ -1,6 +1,11 @@
 import { Circuit } from "@tscircuit/core"
 import { expect, test } from "bun:test"
-import type { PcbCopperPourBRep, SourceNet } from "circuit-json"
+import type {
+  PcbComponent,
+  PcbCopperPourBRep,
+  PcbSmtPadRect,
+  SourceNet,
+} from "circuit-json"
 import { convertCircuitJsonToPcbSvg } from "circuit-to-svg"
 import {
   ViaStitchingQfn32Circuit,
@@ -70,6 +75,7 @@ for (const example of examples) {
         viaHoleDiameter: 0.3,
         viaOuterDiameter: 0.6,
         pourEdgeClearance: 0.2,
+        obstacleClearance: 0.2,
       },
     })
     solver.solve()
@@ -92,6 +98,52 @@ for (const example of examples) {
           Number.isInteger(pcbVia.x / 2) && Number.isInteger(pcbVia.y / 2),
       ),
     ).toBe(true)
+
+    if (example.snapshotName === "qfn32") {
+      const bottomComponent = circuitJson.find(
+        (element): element is PcbComponent =>
+          element.type === "pcb_component" &&
+          String(element.layer) === "bottom",
+      )
+      expect(bottomComponent).toBeDefined()
+      const bottomComponentPads = circuitJson.filter(
+        (element): element is PcbSmtPadRect =>
+          element.type === "pcb_smtpad" &&
+          element.shape === "rect" &&
+          element.pcb_component_id === bottomComponent!.pcb_component_id,
+      )
+      expect(bottomComponentPads.length).toBeGreaterThan(0)
+
+      const viaKeepoutRadius = 0.3 + 0.2
+      expect(
+        output.pcbVias.every((pcbVia) => {
+          const componentOutsideX = Math.max(
+            Math.abs(pcbVia.x - bottomComponent!.center.x) -
+              bottomComponent!.width / 2,
+            0,
+          )
+          const componentOutsideY = Math.max(
+            Math.abs(pcbVia.y - bottomComponent!.center.y) -
+              bottomComponent!.height / 2,
+            0,
+          )
+          const clearsComponent =
+            Math.hypot(componentOutsideX, componentOutsideY) >= viaKeepoutRadius
+          const clearsPads = bottomComponentPads.every((smtPad) => {
+            const padOutsideX = Math.max(
+              Math.abs(pcbVia.x - smtPad.x) - smtPad.width / 2,
+              0,
+            )
+            const padOutsideY = Math.max(
+              Math.abs(pcbVia.y - smtPad.y) - smtPad.height / 2,
+              0,
+            )
+            return Math.hypot(padOutsideX, padOutsideY) >= viaKeepoutRadius
+          })
+          return clearsComponent && clearsPads
+        }),
+      ).toBe(true)
+    }
 
     const svg = convertCircuitJsonToPcbSvg([...circuitJson, ...output.pcbVias])
     await expect(svg).toMatchSvgSnapshot(import.meta.path, example.snapshotName)

@@ -22,6 +22,14 @@ test("rejects dimensions that cannot produce valid stitching geometry", () => {
     () =>
       new ViaStitchSolver({
         circuitJson: [],
+        options: { obstacleClearance: -0.1 },
+      }),
+  ).toThrow("obstacleClearance")
+
+  expect(
+    () =>
+      new ViaStitchSolver({
+        circuitJson: [],
         options: { viaHoleDiameter: 0.6, viaOuterDiameter: 0.6 },
       }),
   ).toThrow("viaHoleDiameter must be smaller than viaOuterDiameter")

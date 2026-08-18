@@ -11,6 +11,10 @@ import {
   getShapeUnionBounds,
   isViaAnnulusInsideShapeUnion,
 } from "../geometry/brep-point-containment"
+import {
+  doesViaIntersectStitchingObstacle,
+  getStitchingObstacles,
+} from "../geometry/circuit-element-obstacles"
 import type {
   ResolvedViaStitchSolverOptions,
   ViaStitchPcbVia,
@@ -43,6 +47,7 @@ const resolveOptions = (
     viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
     viaOuterDiameter: options.viaOuterDiameter ?? 0.6,
     pourEdgeClearance: options.pourEdgeClearance ?? 0.2,
+    obstacleClearance: options.obstacleClearance ?? 0.2,
     minimumViaSeparation:
       options.minimumViaSeparation ??
       Math.max(options.viaOuterDiameter ?? 0.6, 0.8),
@@ -65,6 +70,12 @@ const resolveOptions = (
     resolvedOptions.pourEdgeClearance < 0
   ) {
     throw new Error("pourEdgeClearance must be a finite non-negative number")
+  }
+  if (
+    !Number.isFinite(resolvedOptions.obstacleClearance) ||
+    resolvedOptions.obstacleClearance < 0
+  ) {
+    throw new Error("obstacleClearance must be a finite non-negative number")
   }
   if (
     !Number.isFinite(resolvedOptions.gridOrigin.x) ||
@@ -194,6 +205,7 @@ export class ViaStitchSolver extends BaseSolver {
   private readonly pcbVias: ViaStitchPcbVia[] = []
   private readonly occupiedVias: OccupiedVia[] = []
   private readonly existingPcbViaIds = new Set<string>()
+  private readonly stitchingObstacles
   private nextCopperPourPairIndex = 0
   private nextViaId = 0
 
@@ -201,6 +213,10 @@ export class ViaStitchSolver extends BaseSolver {
     super()
     this.options = resolveOptions(input.options)
     this.copperPourPairContexts = getCopperPourPairContexts(input, this.options)
+    this.stitchingObstacles = getStitchingObstacles(
+      input.circuitJson,
+      this.options.layers,
+    )
     const fallbackViaRadius = this.options.viaOuterDiameter / 2
 
     for (const element of input.circuitJson) {
@@ -269,6 +285,7 @@ export class ViaStitchSolver extends BaseSolver {
 
     const viaRadius = this.options.viaOuterDiameter / 2
     const requiredCopperRadius = viaRadius + this.options.pourEdgeClearance
+    const requiredObstacleRadius = viaRadius + this.options.obstacleClearance
     const xCoordinates = getGridCoordinates({
       minimum: overlapBounds.minX + requiredCopperRadius,
       maximum: overlapBounds.maxX - requiredCopperRadius,
@@ -291,6 +308,11 @@ export class ViaStitchSolver extends BaseSolver {
             radius: viaRadius,
             occupiedVias: this.occupiedVias,
             minimumViaSeparation: this.options.minimumViaSeparation,
+          }) ||
+          doesViaIntersectStitchingObstacle({
+            center,
+            radius: requiredObstacleRadius,
+            obstacles: this.stitchingObstacles,
           }) ||
           !isViaAnnulusInsideShapeUnion({
             center,
