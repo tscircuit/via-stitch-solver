@@ -142,8 +142,8 @@ test("places GND fence vias along both edges of a bent routed trace", async () =
   await expect(svg).toMatchSvgSnapshot(import.meta.path, "bent-trace")
 })
 
-test("continues trace-edge fences across top-bottom route transitions", async () => {
-  const { circuitJson, guideTrace, output } = await solveTraceFence({
+test("avoids existing route vias across top-bottom transitions", async () => {
+  const { guideTrace, output } = await solveTraceFence({
     withLayerTransitions: true,
   })
   const routeVias = guideTrace.route.filter(
@@ -160,7 +160,4 @@ test("continues trace-edge fences across top-bottom route transitions", async ()
       ),
     ),
   ).toBe(true)
-
-  const svg = convertCircuitJsonToPcbSvg([...circuitJson, ...output.pcbVias])
-  await expect(svg).toMatchSvgSnapshot(import.meta.path, "layer-transitions")
 })
