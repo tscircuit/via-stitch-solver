@@ -7,7 +7,7 @@ The solver does not create or reshape copper pours. It:
 
 1. Finds BRep copper pours connected to the same source net on both requested
    layers.
-2. Builds a deterministic via grid over their shared bounds.
+2. Builds either a deterministic via grid or a perimeter-following via fence.
 3. Keeps a candidate only when the complete via annulus and requested edge
    clearance fit inside copper on both layers.
 4. Avoids component bounds, pads, plated holes, board holes, existing routing
@@ -34,6 +34,7 @@ const solver = new ViaStitchSolver({
   circuitJson,
   options: {
     layers: ["top", "bottom"],
+    stitchingPattern: "grid",
     viaPitch: 2,
     viaHoleDiameter: 0.3,
     viaOuterDiameter: 0.6,
@@ -49,3 +50,25 @@ const stitchedCircuitJson = [...circuitJson, ...pcbVias]
 
 By default the grid is aligned to board-world `(0, 0)`. Set `gridOrigin` when a
 different grid alignment is needed. Generated vias are tented by default.
+
+## Fence stitching
+
+Set `stitchingPattern: "fence"` to place vias around the outer boundary of each
+overlapping copper-pour island instead of filling its interior with a grid.
+`viaPitch` is the maximum spacing along the fence. `fenceInset` controls the
+nominal distance from the copper boundary to each via centre and defaults to
+the via radius plus `pourEdgeClearance`.
+
+```ts
+const fenceSolver = new ViaStitchSolver({
+  circuitJson,
+  options: {
+    stitchingPattern: "fence",
+    viaPitch: 2,
+    fenceInset: 0.5,
+  },
+})
+```
+
+Fence candidates must still fit completely inside the same-net copper on both
+layers and pass all component, pad, hole, and existing-via clearance checks.

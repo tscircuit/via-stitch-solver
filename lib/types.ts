@@ -11,7 +11,9 @@ export interface ViaStitchSolverOptions {
   sourceNetIds?: Array<SourceNet["source_net_id"]>
   /** Layers whose same-net copper overlap should be stitched. */
   layers?: readonly [LayerRef, LayerRef]
-  /** Centre-to-centre spacing of the via grid in millimetres. */
+  /** Candidate layout strategy. Grid stitching remains the default. */
+  stitchingPattern?: "grid" | "fence"
+  /** Centre-to-centre grid spacing or maximum fence spacing in millimetres. */
   viaPitch?: number
   viaHoleDiameter?: number
   viaOuterDiameter?: number
@@ -23,6 +25,8 @@ export interface ViaStitchSolverOptions {
   minimumViaSeparation?: number
   /** Board-world origin used to align the via grid. */
   gridOrigin?: Point
+  /** Nominal fence-via centre offset inward from the copper-pour boundary. */
+  fenceInset?: number
   /** Whether generated stitching vias are tented. */
   isTented?: boolean
 }
@@ -44,6 +48,7 @@ export interface ViaStitchSolverOutput {
 export interface ResolvedViaStitchSolverOptions {
   sourceNetIds?: Set<SourceNet["source_net_id"]>
   layers: readonly [LayerRef, LayerRef]
+  stitchingPattern: "grid" | "fence"
   viaPitch: number
   viaHoleDiameter: number
   viaOuterDiameter: number
@@ -51,5 +56,6 @@ export interface ResolvedViaStitchSolverOptions {
   obstacleClearance: number
   minimumViaSeparation: number
   gridOrigin: Point
+  fenceInset: number
   isTented: boolean
 }
