@@ -1,19 +1,23 @@
 # @tscircuit/via-stitch-solver
 
-Generates clearance-aware, overlapping copper corridors on two PCB layers and
-adds stitching vias along the complete routed path of Circuit JSON power
-traces.
+Adds standard via stitching between existing same-net copper pours on two PCB
+layers.
 
-Unlike a transition-only approach, this solver reinforces the full power route:
+The solver does not create or reshape copper pours. It:
 
-1. Find routed traces connected to `source_net` elements marked `is_power`.
-2. Simplify each route centerline and union it into a round-ended corridor.
-3. Clip the corridor to the board outline and requested edge margin.
-4. Use `@tscircuit/copper-pour-solver` to clear unrelated pads, traces, vias,
-   holes, and cutouts independently on both layers.
-5. Place vias at a configurable pitch only where the complete via annulus fits
-   inside both final copper pours.
-6. Reuse existing routing vias by keeping new stitching vias away from them.
+1. Finds BRep copper pours connected to the same source net on both requested
+   layers.
+2. Builds a deterministic via grid over their shared bounds.
+3. Keeps a candidate only when the complete via annulus and requested edge
+   clearance fit inside copper on both layers.
+4. Avoids component bounds, pads, plated holes, board holes, existing routing
+   vias, explicit vias, and newly-created stitching vias.
+5. Emits `pcb_via` elements connected to the stitched net.
+
+This is the usual copper-pour stitching operation used for top and bottom GND
+planes. The pours can cover the board or use fixed convex/concave polygon
+outlines; vias are emitted only inside their actual overlapping copper. It also
+works for any other net that already has overlapping pours.
 
 ## Install
 
@@ -21,43 +25,27 @@ Unlike a transition-only approach, this solver reinforces the full power route:
 bun add @tscircuit/via-stitch-solver
 ```
 
-To test an unpublished GitHub branch:
-
-```bash
-bun add github:tscircuit/via-stitch-solver#agent/add-full-route-via-stitching
-```
-
 ## Usage
 
 ```ts
-import {
-  initializeViaStitchSolver,
-  ViaStitchSolver,
-} from "@tscircuit/via-stitch-solver"
-
-await initializeViaStitchSolver()
+import { ViaStitchSolver } from "@tscircuit/via-stitch-solver"
 
 const solver = new ViaStitchSolver({
   circuitJson,
   options: {
-    minimumPourWidth: 1.4,
-    pourPadding: 0.3,
+    layers: ["top", "bottom"],
     viaPitch: 2,
     viaHoleDiameter: 0.3,
     viaOuterDiameter: 0.6,
-    padMargin: 0.2,
-    traceMargin: 0.2,
+    pourEdgeClearance: 0.2,
+    obstacleClearance: 0.2,
   },
 })
 
 solver.solve()
-const { pcbCopperPours, pcbVias } = solver.getOutput()
-const reinforcedCircuitJson = [
-  ...circuitJson,
-  ...pcbCopperPours,
-  ...pcbVias,
-]
+const { pcbVias } = solver.getOutput()
+const stitchedCircuitJson = [...circuitJson, ...pcbVias]
 ```
 
-The default layers are `top` and `bottom`. Copper is covered with solder mask
-unless `coveredWithSolderMask: false` is explicitly requested.
+By default the grid is aligned to board-world `(0, 0)`. Set `gridOrigin` when a
+different grid alignment is needed. Generated vias are tented by default.
