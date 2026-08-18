@@ -41,6 +41,7 @@ const resolveOptions = (
 ): ResolvedViaStitchSolverOptions => {
   const viaOuterDiameter = options.viaOuterDiameter ?? 0.6
   const pourEdgeClearance = options.pourEdgeClearance ?? 0.2
+  const obstacleClearance = options.obstacleClearance ?? 0.2
   const resolvedOptions: ResolvedViaStitchSolverOptions = {
     sourceNetIds: options.sourceNetIds
       ? new Set(options.sourceNetIds)
@@ -51,12 +52,17 @@ const resolveOptions = (
     viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
     viaOuterDiameter,
     pourEdgeClearance,
-    obstacleClearance: options.obstacleClearance ?? 0.2,
+    obstacleClearance,
     minimumViaSeparation:
       options.minimumViaSeparation ??
       Math.max(options.viaOuterDiameter ?? 0.6, 0.8),
     gridOrigin: options.gridOrigin ?? { x: 0, y: 0 },
-    fenceInset: options.fenceInset ?? viaOuterDiameter / 2 + pourEdgeClearance,
+    fenceTraceIds: options.fenceTraceIds
+      ? new Set(options.fenceTraceIds)
+      : undefined,
+    fenceTraceOffset:
+      options.fenceTraceOffset ??
+      viaOuterDiameter / 2 + obstacleClearance + pourEdgeClearance,
     isTented: options.isTented ?? true,
   }
 
@@ -83,10 +89,10 @@ const resolveOptions = (
     throw new Error("obstacleClearance must be a finite non-negative number")
   }
   if (
-    !Number.isFinite(resolvedOptions.fenceInset) ||
-    resolvedOptions.fenceInset < 0
+    !Number.isFinite(resolvedOptions.fenceTraceOffset) ||
+    resolvedOptions.fenceTraceOffset < 0
   ) {
-    throw new Error("fenceInset must be a finite non-negative number")
+    throw new Error("fenceTraceOffset must be a finite non-negative number")
   }
   if (
     resolvedOptions.stitchingPattern !== "grid" &&
@@ -102,16 +108,6 @@ const resolveOptions = (
   }
   if (resolvedOptions.viaHoleDiameter >= resolvedOptions.viaOuterDiameter) {
     throw new Error("viaHoleDiameter must be smaller than viaOuterDiameter")
-  }
-  const minimumFenceInset =
-    resolvedOptions.viaOuterDiameter / 2 + resolvedOptions.pourEdgeClearance
-  if (
-    resolvedOptions.stitchingPattern === "fence" &&
-    resolvedOptions.fenceInset < minimumFenceInset
-  ) {
-    throw new Error(
-      `fenceInset must be at least ${minimumFenceInset}mm to fit the via annulus and pourEdgeClearance`,
-    )
   }
   if (String(resolvedOptions.layers[0]) === String(resolvedOptions.layers[1])) {
     throw new Error("layers must contain two distinct PCB layers")
@@ -276,6 +272,7 @@ export class ViaStitchSolver extends BaseSolver {
   private readonly options: ResolvedViaStitchSolverOptions
   private readonly copperPourPairContexts: CopperPourPairContext[]
   private readonly pcbVias: ViaStitchPcbVia[] = []
+  private readonly pcbTraces: PcbTrace[]
   private readonly occupiedVias: OccupiedVia[] = []
   private readonly existingPcbViaIds = new Set<string>()
   private readonly stitchingObstacles
@@ -290,6 +287,22 @@ export class ViaStitchSolver extends BaseSolver {
       input.circuitJson,
       this.options.layers,
     )
+    this.pcbTraces = input.circuitJson.filter(
+      (element): element is PcbTrace => element.type === "pcb_trace",
+    )
+    if (this.options.fenceTraceIds) {
+      const availableTraceIds = new Set(
+        this.pcbTraces.map((pcbTrace) => pcbTrace.pcb_trace_id),
+      )
+      const missingTraceIds = [...this.options.fenceTraceIds].filter(
+        (pcbTraceId) => !availableTraceIds.has(pcbTraceId),
+      )
+      if (missingTraceIds.length > 0) {
+        throw new Error(
+          `fenceTraceIds contains unknown PCB trace IDs: ${missingTraceIds.join(", ")}`,
+        )
+      }
+    }
     const fallbackViaRadius = this.options.viaOuterDiameter / 2
 
     for (const element of input.circuitJson) {
@@ -342,12 +355,18 @@ export class ViaStitchSolver extends BaseSolver {
     const viaRadius = this.options.viaOuterDiameter / 2
     const requiredCopperRadius = viaRadius + this.options.pourEdgeClearance
     const requiredObstacleRadius = viaRadius + this.options.obstacleClearance
+    const fenceReferenceTraces = this.options.fenceTraceIds
+      ? this.pcbTraces.filter((pcbTrace) =>
+          this.options.fenceTraceIds!.has(pcbTrace.pcb_trace_id),
+        )
+      : this.pcbTraces
     const candidateCenters =
       this.options.stitchingPattern === "fence"
         ? getFenceCandidateCenters({
-            shapeSets: [fromLayerShapes, toLayerShapes],
+            pcbTraces: fenceReferenceTraces,
+            layers: this.options.layers,
             pitch: this.options.viaPitch,
-            inset: this.options.fenceInset,
+            traceOffset: this.options.fenceTraceOffset,
           })
         : getGridCandidateCenters({
             fromLayerShapes,

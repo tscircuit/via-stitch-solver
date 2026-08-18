@@ -1,6 +1,7 @@
 import type {
   AnyCircuitElement,
   LayerRef,
+  PcbTrace,
   PcbVia,
   Point,
   SourceNet,
@@ -25,8 +26,10 @@ export interface ViaStitchSolverOptions {
   minimumViaSeparation?: number
   /** Board-world origin used to align the via grid. */
   gridOrigin?: Point
-  /** Nominal fence-via centre offset inward from the copper-pour boundary. */
-  fenceInset?: number
+  /** Restrict fence guides to these routed PCB traces. Defaults to all traces. */
+  fenceTraceIds?: Array<PcbTrace["pcb_trace_id"]>
+  /** Additional via-centre offset outward from the routed trace's copper edge. */
+  fenceTraceOffset?: number
   /** Whether generated stitching vias are tented. */
   isTented?: boolean
 }
@@ -56,6 +59,7 @@ export interface ResolvedViaStitchSolverOptions {
   obstacleClearance: number
   minimumViaSeparation: number
   gridOrigin: Point
-  fenceInset: number
+  fenceTraceIds?: Set<PcbTrace["pcb_trace_id"]>
+  fenceTraceOffset: number
   isTented: boolean
 }

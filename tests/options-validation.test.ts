@@ -40,12 +40,21 @@ test("rejects dimensions that cannot produce valid stitching geometry", () => {
         circuitJson: [],
         options: {
           stitchingPattern: "fence",
-          viaOuterDiameter: 0.6,
-          pourEdgeClearance: 0.2,
-          fenceInset: 0.49,
+          fenceTraceOffset: -0.1,
         },
       }),
-  ).toThrow("fenceInset must be at least 0.5mm")
+  ).toThrow("fenceTraceOffset must be a finite non-negative number")
+
+  expect(
+    () =>
+      new ViaStitchSolver({
+        circuitJson: [],
+        options: {
+          stitchingPattern: "fence",
+          fenceTraceIds: ["pcb_trace_missing"],
+        },
+      }),
+  ).toThrow("fenceTraceIds contains unknown PCB trace IDs")
 
   expect(
     () =>

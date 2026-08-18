@@ -1,194 +1,238 @@
-import type { BRepShape, Point } from "circuit-json"
+import type {
+  LayerRef,
+  PcbTrace,
+  PcbTraceRoutePointWire,
+  Point,
+} from "circuit-json"
 
-interface FenceSegment {
+interface OffsetSegment {
   start: Point
   end: Point
+  direction: Point
   length: number
+  normal: Point
+  offset: number
 }
 
-const getRingSegments = (shape: BRepShape): FenceSegment[] => {
-  const vertices = shape.outer_ring.vertices
-  if (vertices.length < 2) return []
+const POINT_EPSILON = 1e-9
+const MAX_MITER_MULTIPLIER = 4
 
-  const segments: FenceSegment[] = []
-  for (let vertexIndex = 0; vertexIndex < vertices.length; vertexIndex++) {
-    const start = vertices[vertexIndex]!
-    const end = vertices[(vertexIndex + 1) % vertices.length]!
-    const length = Math.hypot(end.x - start.x, end.y - start.y)
-    if (length > 0) segments.push({ start, end, length })
+const isSamePoint = (first: Point, second: Point) =>
+  Math.hypot(first.x - second.x, first.y - second.y) <= POINT_EPSILON
+
+const getWireRuns = ({
+  pcbTrace,
+  layers,
+}: {
+  pcbTrace: PcbTrace
+  layers: readonly [LayerRef, LayerRef]
+}) => {
+  const runs: PcbTraceRoutePointWire[][] = []
+  let currentRun: PcbTraceRoutePointWire[] = []
+
+  const commitRun = () => {
+    const distinctPoints = currentRun.filter(
+      (point, pointIndex) =>
+        pointIndex === 0 || !isSamePoint(point, currentRun[pointIndex - 1]!),
+    )
+    if (distinctPoints.length >= 2) runs.push(distinctPoints)
+    currentRun = []
+  }
+
+  for (const routePoint of pcbTrace.route) {
+    if (
+      routePoint.route_type !== "wire" ||
+      !layers.some((layer) => String(layer) === String(routePoint.layer))
+    ) {
+      commitRun()
+      continue
+    }
+
+    if (
+      currentRun.length > 0 &&
+      String(currentRun[currentRun.length - 1]!.layer) !==
+        String(routePoint.layer)
+    ) {
+      commitRun()
+    }
+    currentRun.push(routePoint)
+  }
+  commitRun()
+
+  return runs
+}
+
+const getOffsetSegments = ({
+  wireRun,
+  side,
+  traceOffset,
+}: {
+  wireRun: PcbTraceRoutePointWire[]
+  side: -1 | 1
+  traceOffset: number
+}) => {
+  const segments: OffsetSegment[] = []
+  for (let pointIndex = 0; pointIndex < wireRun.length - 1; pointIndex++) {
+    const start = wireRun[pointIndex]!
+    const end = wireRun[pointIndex + 1]!
+    const delta = { x: end.x - start.x, y: end.y - start.y }
+    const length = Math.hypot(delta.x, delta.y)
+    if (length <= POINT_EPSILON) continue
+
+    const direction = { x: delta.x / length, y: delta.y / length }
+    const normal = {
+      x: -direction.y * side,
+      y: direction.x * side,
+    }
+    // Use the widest endpoint so a width change cannot pull the fence inside
+    // either adjoining portion of trace copper.
+    const offset = Math.max(start.width, end.width) / 2 + traceOffset
+    segments.push({
+      start: { x: start.x, y: start.y },
+      end: { x: end.x, y: end.y },
+      direction,
+      length,
+      normal,
+      offset,
+    })
   }
   return segments
 }
 
-const getCanonicalOuterRingKey = (shape: BRepShape) => {
-  const vertexKeys = shape.outer_ring.vertices.map(
-    (vertex) =>
-      `${vertex.x.toFixed(9)},${vertex.y.toFixed(9)},${(vertex.bulge ?? 0).toFixed(9)}`,
-  )
-  if (vertexKeys.length === 0) return ""
+const offsetPoint = (point: Point, segment: OffsetSegment) => ({
+  x: point.x + segment.normal.x * segment.offset,
+  y: point.y + segment.normal.y * segment.offset,
+})
 
-  let canonicalKey: string | undefined
-  for (let startIndex = 0; startIndex < vertexKeys.length; startIndex++) {
-    const candidateKey = vertexKeys
-      .slice(startIndex)
-      .concat(vertexKeys.slice(0, startIndex))
-      .join(";")
-    if (canonicalKey === undefined || candidateKey < canonicalKey) {
-      canonicalKey = candidateKey
+const getOffsetCorner = (
+  previous: OffsetSegment,
+  next: OffsetSegment,
+): Point => {
+  const corner = previous.end
+  const previousOffsetCorner = offsetPoint(corner, previous)
+  const nextOffsetCorner = offsetPoint(corner, next)
+  const cross =
+    previous.direction.x * next.direction.y -
+    previous.direction.y * next.direction.x
+
+  if (Math.abs(cross) <= POINT_EPSILON) {
+    return {
+      x: (previousOffsetCorner.x + nextOffsetCorner.x) / 2,
+      y: (previousOffsetCorner.y + nextOffsetCorner.y) / 2,
     }
   }
-  return canonicalKey!
-}
 
-const getOffsetCornerCandidateCenters = ({
-  shape,
-  inset,
-}: {
-  shape: BRepShape
-  inset: number
-}) => {
-  const vertices = shape.outer_ring.vertices
-  if (vertices.length < 3) return []
-
-  const candidateCenters: Point[] = []
-  for (let vertexIndex = 0; vertexIndex < vertices.length; vertexIndex++) {
-    const previous =
-      vertices[(vertexIndex - 1 + vertices.length) % vertices.length]!
-    const current = vertices[vertexIndex]!
-    const next = vertices[(vertexIndex + 1) % vertices.length]!
-    const previousDirection = {
-      x: current.x - previous.x,
-      y: current.y - previous.y,
-    }
-    const nextDirection = {
-      x: next.x - current.x,
-      y: next.y - current.y,
-    }
-    const previousLength = Math.hypot(previousDirection.x, previousDirection.y)
-    const nextLength = Math.hypot(nextDirection.x, nextDirection.y)
-    if (previousLength === 0 || nextLength === 0) continue
-
-    const previousUnit = {
-      x: previousDirection.x / previousLength,
-      y: previousDirection.y / previousLength,
-    }
-    const nextUnit = {
-      x: nextDirection.x / nextLength,
-      y: nextDirection.y / nextLength,
-    }
-    const previousOffsetPoint = {
-      x: current.x + previousUnit.y * inset,
-      y: current.y - previousUnit.x * inset,
-    }
-    const nextOffsetPoint = {
-      x: current.x + nextUnit.y * inset,
-      y: current.y - nextUnit.x * inset,
-    }
-    const directionCrossProduct =
-      previousUnit.x * nextUnit.y - previousUnit.y * nextUnit.x
-    if (Math.abs(directionCrossProduct) < 1e-10) continue
-
-    const offsetPointDelta = {
-      x: nextOffsetPoint.x - previousOffsetPoint.x,
-      y: nextOffsetPoint.y - previousOffsetPoint.y,
-    }
-    const previousLineInterpolation =
-      (offsetPointDelta.x * nextUnit.y - offsetPointDelta.y * nextUnit.x) /
-      directionCrossProduct
-    candidateCenters.push({
-      x: previousOffsetPoint.x + previousUnit.x * previousLineInterpolation,
-      y: previousOffsetPoint.y + previousUnit.y * previousLineInterpolation,
-    })
+  const offsetDelta = {
+    x: nextOffsetCorner.x - previousOffsetCorner.x,
+    y: nextOffsetCorner.y - previousOffsetCorner.y,
   }
+  const interpolation =
+    (offsetDelta.x * next.direction.y - offsetDelta.y * next.direction.x) /
+    cross
+  const intersection = {
+    x: previousOffsetCorner.x + previous.direction.x * interpolation,
+    y: previousOffsetCorner.y + previous.direction.y * interpolation,
+  }
+  const maximumMiter =
+    Math.max(previous.offset, next.offset) * MAX_MITER_MULTIPLIER
 
-  return candidateCenters
-}
-
-const getRingFenceCandidateCenters = ({
-  shape,
-  pitch,
-  inset,
-}: {
-  shape: BRepShape
-  pitch: number
-  inset: number
-}) => {
-  const segments = getRingSegments(shape)
-  const perimeter = segments.reduce(
-    (totalLength, segment) => totalLength + segment.length,
-    0,
-  )
-  if (perimeter === 0) return []
-
-  const candidateCount = Math.max(1, Math.ceil(perimeter / pitch))
-  const actualPitch = perimeter / candidateCount
-  // Prefer explicit offset-corner candidates so the fence does not develop a
-  // large gap where two sampled edges meet. Invalid concave-corner mitres are
-  // discarded later by the shared copper-containment checks.
-  const candidateCenters = getOffsetCornerCandidateCenters({ shape, inset })
-  let segmentIndex = 0
-  let distanceAtSegmentStart = 0
-
-  for (
-    let candidateIndex = 0;
-    candidateIndex < candidateCount;
-    candidateIndex++
+  if (
+    Math.hypot(intersection.x - corner.x, intersection.y - corner.y) <=
+    maximumMiter
   ) {
-    const distanceAlongRing = (candidateIndex + 0.5) * actualPitch
-    while (
-      segmentIndex < segments.length - 1 &&
-      distanceAlongRing >
-        distanceAtSegmentStart + segments[segmentIndex]!.length
-    ) {
-      distanceAtSegmentStart += segments[segmentIndex]!.length
-      segmentIndex += 1
-    }
-
-    const segment = segments[segmentIndex]!
-    const distanceAlongSegment = distanceAlongRing - distanceAtSegmentStart
-    const interpolation = distanceAlongSegment / segment.length
-    const segmentX = segment.end.x - segment.start.x
-    const segmentY = segment.end.y - segment.start.y
-    const boundaryPoint = {
-      x: segment.start.x + segmentX * interpolation,
-      y: segment.start.y + segmentY * interpolation,
-    }
-
-    // Circuit JSON outer rings are clockwise, so the right-hand normal points
-    // into the copper island.
-    const inwardNormal = {
-      x: segmentY / segment.length,
-      y: -segmentX / segment.length,
-    }
-    candidateCenters.push({
-      x: boundaryPoint.x + inwardNormal.x * inset,
-      y: boundaryPoint.y + inwardNormal.y * inset,
-    })
+    return intersection
   }
 
+  // Very acute turns create impractically long mitres. Beveling the guide at
+  // the average of the adjoining offset points keeps candidates local.
+  return {
+    x: (previousOffsetCorner.x + nextOffsetCorner.x) / 2,
+    y: (previousOffsetCorner.y + nextOffsetCorner.y) / 2,
+  }
+}
+
+const getOffsetPolyline = ({
+  wireRun,
+  side,
+  traceOffset,
+}: {
+  wireRun: PcbTraceRoutePointWire[]
+  side: -1 | 1
+  traceOffset: number
+}) => {
+  const segments = getOffsetSegments({ wireRun, side, traceOffset })
+  if (segments.length === 0) return []
+
+  const points: Point[] = [offsetPoint(segments[0]!.start, segments[0]!)]
+  for (let segmentIndex = 1; segmentIndex < segments.length; segmentIndex++) {
+    points.push(
+      getOffsetCorner(segments[segmentIndex - 1]!, segments[segmentIndex]!),
+    )
+  }
+  points.push(
+    offsetPoint(
+      segments[segments.length - 1]!.end,
+      segments[segments.length - 1]!,
+    ),
+  )
+  return points
+}
+
+const samplePolyline = (points: Point[], pitch: number) => {
+  if (points.length < 2) return points
+
+  const candidateCenters: Point[] = [points[0]!]
+  for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex++) {
+    const start = points[pointIndex]!
+    const end = points[pointIndex + 1]!
+    const length = Math.hypot(end.x - start.x, end.y - start.y)
+    if (length <= POINT_EPSILON) continue
+
+    const intervalCount = Math.max(1, Math.ceil(length / pitch))
+    for (
+      let intervalIndex = 1;
+      intervalIndex <= intervalCount;
+      intervalIndex++
+    ) {
+      const interpolation = intervalIndex / intervalCount
+      candidateCenters.push({
+        x: start.x + (end.x - start.x) * interpolation,
+        y: start.y + (end.y - start.y) * interpolation,
+      })
+    }
+  }
   return candidateCenters
 }
 
 export const getFenceCandidateCenters = ({
-  shapeSets,
+  pcbTraces,
+  layers,
   pitch,
-  inset,
+  traceOffset,
 }: {
-  shapeSets: BRepShape[][]
+  pcbTraces: PcbTrace[]
+  layers: readonly [LayerRef, LayerRef]
   pitch: number
-  inset: number
+  traceOffset: number
 }) => {
-  const visitedOuterRings = new Set<string>()
   const candidateCenters: Point[] = []
+  const visitedCenters = new Set<string>()
 
-  for (const shapes of shapeSets) {
-    for (const shape of shapes) {
-      const outerRingKey = getCanonicalOuterRingKey(shape)
-      if (visitedOuterRings.has(outerRingKey)) continue
-      visitedOuterRings.add(outerRingKey)
-      candidateCenters.push(
-        ...getRingFenceCandidateCenters({ shape, pitch, inset }),
-      )
+  for (const pcbTrace of pcbTraces) {
+    for (const wireRun of getWireRuns({ pcbTrace, layers })) {
+      for (const side of [-1, 1] as const) {
+        const offsetPolyline = getOffsetPolyline({
+          wireRun,
+          side,
+          traceOffset,
+        })
+        for (const center of samplePolyline(offsetPolyline, pitch)) {
+          const key = `${center.x.toFixed(8)},${center.y.toFixed(8)}`
+          if (visitedCenters.has(key)) continue
+          visitedCenters.add(key)
+          candidateCenters.push(center)
+        }
+      }
     }
   }
 

@@ -7,7 +7,7 @@ The solver does not create or reshape copper pours. It:
 
 1. Finds BRep copper pours connected to the same source net on both requested
    layers.
-2. Builds either a deterministic via grid or a perimeter-following via fence.
+2. Builds either a deterministic via grid or a trace-edge via fence.
 3. Keeps a candidate only when the complete via annulus and requested edge
    clearance fit inside copper on both layers.
 4. Avoids component bounds, pads, plated holes, board holes, existing routing
@@ -53,22 +53,35 @@ different grid alignment is needed. Generated vias are tented by default.
 
 ## Fence stitching
 
-Set `stitchingPattern: "fence"` to place vias around the outer boundary of each
-overlapping copper-pour island instead of filling its interior with a grid.
-`viaPitch` is the maximum spacing along the fence. `fenceInset` controls the
-nominal distance from the copper boundary to each via centre and defaults to
-the via radius plus `pourEdgeClearance`.
+Set `stitchingPattern: "fence"` to place two rows of stitching vias beside
+routed traces instead of filling the copper-pour interior with a grid. The rows
+follow both trace edges and continue around bends. Layer transitions split the
+guide into per-layer runs, and existing route vias remain protected by the
+normal via-separation check.
+
+`sourceNetIds` selects the copper-pour net assigned to the new vias (usually
+GND). `fenceTraceIds` independently selects the routed traces whose edges guide
+placement; when omitted, all PCB traces are considered. This means the guide
+trace can be a signal while the fence vias correctly remain GND vias.
+
+`viaPitch` is the maximum spacing along each row. `fenceTraceOffset` is the
+additional via-centre distance outward from the trace copper edge. Its default
+accounts for the via radius, `obstacleClearance`, and `pourEdgeClearance`.
 
 ```ts
 const fenceSolver = new ViaStitchSolver({
   circuitJson,
   options: {
+    sourceNetIds: [groundSourceNetId],
     stitchingPattern: "fence",
+    fenceTraceIds: [signalPcbTraceId],
     viaPitch: 2,
-    fenceInset: 0.5,
+    fenceTraceOffset: 0.8,
   },
 })
 ```
 
 Fence candidates must still fit completely inside the same-net copper on both
 layers and pass all component, pad, hole, and existing-via clearance checks.
+Candidates that land in the trace's copper-pour clearance channel are therefore
+discarded rather than being forced into invalid copper.
