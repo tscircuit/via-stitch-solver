@@ -14,8 +14,8 @@ export default function WelcomePage() {
       <p style={styles.eyebrow}>tscircuit geometry</p>
       <h1 style={styles.title}>@tscircuit/via-stitch-solver</h1>
       <p style={styles.lede}>
-        Place a clearance-aware via grid wherever existing same-net copper pours
-        overlap on two PCB layers.
+        After autorouting, add one clearance-aware entry via where a power or
+        GND trace enters paired same-net polygon pours.
       </p>
       <h2>Install</h2>
       <pre style={styles.pre}>

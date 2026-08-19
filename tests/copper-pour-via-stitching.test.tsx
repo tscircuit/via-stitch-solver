@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { SourceNet } from "circuit-json"
+import type { PcbBoard, SourceNet } from "circuit-json"
 import { convertCircuitJsonToPcbSvg } from "circuit-to-svg"
 import { ViaStitchSolver } from "lib/index"
 import { renderGroundPourCircuit } from "./fixtures/create-ground-pour-circuit"
@@ -11,6 +11,14 @@ test("stitches the overlap of existing same-net copper pours", async () => {
       element.type === "source_net" && element.is_ground === true,
   )
   expect(groundSourceNet).toBeDefined()
+  const pcbBoard = circuitJson.find(
+    (element): element is PcbBoard => element.type === "pcb_board",
+  )
+  expect(pcbBoard).toBeDefined()
+  expect({
+    holeDiameter: pcbBoard!.min_via_hole_diameter,
+    padDiameter: pcbBoard!.min_via_pad_diameter,
+  }).toEqual({ holeDiameter: 0.2, padDiameter: 0.3 })
 
   const originalCopperPourCount = circuitJson.filter(
     (element) => element.type === "pcb_copper_pour",
@@ -29,6 +37,13 @@ test("stitches the overlap of existing same-net copper pours", async () => {
 
   expect(output.processedCopperPourPairCount).toBe(1)
   expect(output.pcbVias.length).toBeGreaterThan(10)
+  expect(
+    output.pcbVias.every(
+      (pcbVia) =>
+        pcbVia.hole_diameter === pcbBoard!.min_via_hole_diameter &&
+        pcbVia.outer_diameter === pcbBoard!.min_via_pad_diameter,
+    ),
+  ).toBe(true)
   expect(
     output.pcbVias.some((pcbVia) => pcbVia.x === 0 && pcbVia.y === 0),
   ).toBe(false)

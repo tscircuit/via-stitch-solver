@@ -9,11 +9,13 @@ import type {
 export interface ViaStitchSolverOptions {
   /** Process only copper pours connected to these source nets. */
   sourceNetIds?: Array<SourceNet["source_net_id"]>
-  /** Layers whose same-net copper overlap should be stitched. */
+  /** Layers whose explicit pours or trace-to-pour copper should be stitched. */
   layers?: readonly [LayerRef, LayerRef]
   /** Centre-to-centre spacing of the via grid in millimetres. */
   viaPitch?: number
+  /** Override pcb_board.min_via_hole_diameter. */
   viaHoleDiameter?: number
+  /** Override pcb_board.min_via_pad_diameter. */
   viaOuterDiameter?: number
   /** Copper required beyond the via annulus on both stitched layers. */
   pourEdgeClearance?: number
