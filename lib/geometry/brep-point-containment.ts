@@ -46,7 +46,7 @@ const isPointInShape = (point: Point, shape: BRepShape) =>
   isPointInRing(point, shape.outer_ring) &&
   !shape.inner_rings.some((innerRing) => isPointInRing(point, innerRing))
 
-const isPointInShapeUnion = (point: Point, shapes: BRepShape[]) =>
+export const isPointInShapeUnion = (point: Point, shapes: BRepShape[]) =>
   shapes.some((shape) => isPointInShape(point, shape))
 
 export const getShapeUnionBounds = (shapes: BRepShape[]) => {

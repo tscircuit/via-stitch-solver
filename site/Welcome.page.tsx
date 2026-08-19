@@ -15,7 +15,8 @@ export default function WelcomePage() {
       <h1 style={styles.title}>@tscircuit/via-stitch-solver</h1>
       <p style={styles.lede}>
         Place clearance-aware stitching vias wherever same-net copper overlaps
-        on two PCB layers, including a thick power trace over a copper pour.
+        on two PCB layers, including power routing and narrow GND traces
+        entering a ground pour.
       </p>
       <h2>Install</h2>
       <pre style={styles.pre}>

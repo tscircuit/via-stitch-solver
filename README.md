@@ -55,16 +55,25 @@ different grid alignment is needed. Generated vias are tented by default.
 
 ## Power trace over a copper pour
 
-When a thick trace on one requested layer overlaps a same-net copper pour on the
-other layer, the default grid mode samples along the routed trace. A candidate
-is emitted only if the complete via annulus plus `pourEdgeClearance` fits inside
-both the trace copper and the BRep pour. Thin traces that cannot contain the via
-are ignored, as are traces connected to a different net.
+When a routed trace on one requested layer overlaps a same-net copper pour on
+the other layer, the default grid mode samples along the routed trace. The
+opposite-layer BRep pour must contain the complete via annulus plus
+`pourEdgeClearance`. On the trace layer, that required copper can be supplied by
+the union of the trace and a same-net pour. This allows a narrow GND branch to
+enter a GND pour and receive a via even when the via annulus is wider than the
+trace by itself. Traces connected to a different net are never used as stitch
+guides.
 
 The example in
 `examples/power-trace-copper-pour-stitching.tsx` uses a 1.2 mm top-layer VCC
 trace over a fixed bottom-layer VCC pour. The generated vias follow only the
 part of the route that overlaps the pour; they do not fill the rest of the pour.
+
+The example in `examples/ground-pour-trace-entry-stitching.tsx` models the
+common layout where signal and power routes cut clearance channels through a
+top/bottom GND-pour region. The GND via grid stays inside the remaining overlap,
+and narrow GND traces entering the pour can receive route-aligned vias without
+placing vias in foreign-net trace channels or component pads.
 
 ## Fence stitching
 
