@@ -1,6 +1,7 @@
 import type {
   AnyCircuitElement,
   LayerRef,
+  PcbTrace,
   PcbVia,
   Point,
   SourceNet,
@@ -11,7 +12,9 @@ export interface ViaStitchSolverOptions {
   sourceNetIds?: Array<SourceNet["source_net_id"]>
   /** Layers whose same-net copper overlap should be stitched. */
   layers?: readonly [LayerRef, LayerRef]
-  /** Centre-to-centre spacing of the via grid in millimetres. */
+  /** Candidate layout strategy. Grid stitching remains the default. */
+  stitchingPattern?: "grid" | "fence"
+  /** Centre-to-centre grid spacing or maximum fence spacing in millimetres. */
   viaPitch?: number
   viaHoleDiameter?: number
   viaOuterDiameter?: number
@@ -23,6 +26,10 @@ export interface ViaStitchSolverOptions {
   minimumViaSeparation?: number
   /** Board-world origin used to align the via grid. */
   gridOrigin?: Point
+  /** Restrict fence guides to these routed PCB traces. Defaults to all traces. */
+  fenceTraceIds?: Array<PcbTrace["pcb_trace_id"]>
+  /** Additional via-centre offset outward from the routed trace's copper edge. */
+  fenceTraceOffset?: number
   /** Whether generated stitching vias are tented. */
   isTented?: boolean
 }
@@ -44,6 +51,7 @@ export interface ViaStitchSolverOutput {
 export interface ResolvedViaStitchSolverOptions {
   sourceNetIds?: Set<SourceNet["source_net_id"]>
   layers: readonly [LayerRef, LayerRef]
+  stitchingPattern: "grid" | "fence"
   viaPitch: number
   viaHoleDiameter: number
   viaOuterDiameter: number
@@ -51,5 +59,7 @@ export interface ResolvedViaStitchSolverOptions {
   obstacleClearance: number
   minimumViaSeparation: number
   gridOrigin: Point
+  fenceTraceIds?: Set<PcbTrace["pcb_trace_id"]>
+  fenceTraceOffset: number
   isTented: boolean
 }
