@@ -1,10 +1,14 @@
 # @tscircuit/via-stitch-solver
 
 Adds standard via stitching between existing same-net copper on two PCB layers.
-It supports overlapping copper pours and a thick routed power trace overlapping
-a copper pour on the other layer.
+It supports overlapping copper pours and post-autoroute power or GND traces
+entering a same-net polygon pour on the other layer.
 
-The solver does not create or reshape copper pours. It:
+Run the solver after autorouting and copper-pour generation. It reads the final
+PCB trace routes and BRep polygon pours from Circuit JSON; it does not route
+traces or create or reshape pours.
+
+The solver:
 
 1. Finds BRep copper pours connected to the same source net on both requested
    layers, or a routed power/GND trace and polygon pour connected to the same
@@ -52,11 +56,11 @@ const stitchedCircuitJson = [...circuitJson, ...pcbVias]
 By default the grid is aligned to board-world `(0, 0)`. Set `gridOrigin` when a
 different grid alignment is needed. Generated vias are tented by default.
 
-## Power trace over a copper pour
+## Post-autoroute traces entering polygon pours
 
 When a routed trace on one requested layer overlaps a same-net copper pour on
-the other layer, the default grid mode samples along the routed trace. The
-opposite-layer BRep pour must contain the complete via annulus plus
+the other layer, the solver samples along the final autorouted trace. The
+opposite-layer polygon pour must contain the complete via annulus plus
 `pourEdgeClearance`. On the trace layer, that required copper can be supplied by
 the union of the trace and a same-net pour. This allows a narrow GND branch to
 enter a GND pour and receive a via even when the via annulus is wider than the
@@ -69,7 +73,7 @@ trace over a fixed bottom-layer VCC pour. The generated vias follow only the
 part of the route that overlaps the pour; they do not fill the rest of the pour.
 
 The example in `examples/ground-pour-trace-entry-stitching.tsx` models the
-common layout where signal and power routes cut clearance channels through a
-top/bottom GND-pour region. The GND via grid stays inside the remaining overlap,
-and narrow GND traces entering the pour can receive route-aligned vias without
-placing vias in foreign-net trace channels or component pads.
+common layout where narrow GND branches enter a fixed top/bottom GND polygon
+while signal and power routes cut clearance channels through it. The GND via
+grid stays inside the remaining overlap, and route-aligned vias are kept out of
+foreign-net trace channels and component pads.
