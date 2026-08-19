@@ -1,9 +1,11 @@
 import type {
+  BRepShape,
   LayerRef,
   PcbTrace,
   PcbTraceRoutePointWire,
   Point,
 } from "circuit-json"
+import { isPointInShapeUnion } from "./brep-point-containment"
 
 const POINT_EPSILON = 1e-9
 const ANNULUS_SAMPLE_COUNT = 32
@@ -148,6 +150,47 @@ const isPointInsideTraceCopper = ({
     }),
   )
 
+const getViaAnnulusSamplePoints = ({
+  center,
+  radius,
+}: {
+  center: Point
+  radius: number
+}) => {
+  const samplePoints: Point[] = [center]
+  for (let sampleIndex = 0; sampleIndex < ANNULUS_SAMPLE_COUNT; sampleIndex++) {
+    const angle = (sampleIndex / ANNULUS_SAMPLE_COUNT) * Math.PI * 2
+    samplePoints.push({
+      x: center.x + Math.cos(angle) * radius,
+      y: center.y + Math.sin(angle) * radius,
+    })
+  }
+  return samplePoints
+}
+
+export const isViaAnnulusInsideTraceOrShapeUnion = ({
+  center,
+  radius,
+  pcbTrace,
+  layer,
+  shapes,
+}: {
+  center: Point
+  radius: number
+  pcbTrace: PcbTrace
+  layer: LayerRef
+  shapes: BRepShape[]
+}) => {
+  const wireRuns = getTraceWireRuns({ pcbTrace, layer })
+  if (wireRuns.length === 0) return false
+
+  return getViaAnnulusSamplePoints({ center, radius }).every(
+    (samplePoint) =>
+      isPointInsideTraceCopper({ point: samplePoint, wireRuns }) ||
+      isPointInShapeUnion(samplePoint, shapes),
+  )
+}
+
 export const isViaAnnulusInsideTraceCopper = ({
   center,
   radius,
@@ -158,20 +201,11 @@ export const isViaAnnulusInsideTraceCopper = ({
   radius: number
   pcbTrace: PcbTrace
   layer: LayerRef
-}) => {
-  const wireRuns = getTraceWireRuns({ pcbTrace, layer })
-  if (wireRuns.length === 0) return false
-
-  const samplePoints: Point[] = [center]
-  for (let sampleIndex = 0; sampleIndex < ANNULUS_SAMPLE_COUNT; sampleIndex++) {
-    const angle = (sampleIndex / ANNULUS_SAMPLE_COUNT) * Math.PI * 2
-    samplePoints.push({
-      x: center.x + Math.cos(angle) * radius,
-      y: center.y + Math.sin(angle) * radius,
-    })
-  }
-
-  return samplePoints.every((samplePoint) =>
-    isPointInsideTraceCopper({ point: samplePoint, wireRuns }),
-  )
-}
+}) =>
+  isViaAnnulusInsideTraceOrShapeUnion({
+    center,
+    radius,
+    pcbTrace,
+    layer,
+    shapes: [],
+  })

@@ -4,6 +4,7 @@ import type {
   LayerRef,
   PcbCopperPourBRep,
   PcbTrace,
+  PcbTraceRoutePointWire,
   PcbVia,
   Point,
   SourceNet,
@@ -19,7 +20,7 @@ import {
 } from "../geometry/circuit-element-obstacles"
 import {
   getTraceCopperCandidateCenters,
-  isViaAnnulusInsideTraceCopper,
+  isViaAnnulusInsideTraceOrShapeUnion,
 } from "../geometry/trace-copper"
 import type {
   ResolvedViaStitchSolverOptions,
@@ -41,6 +42,7 @@ interface TraceCopperPourContext {
   sourceNet?: SourceNet
   traceLayer: LayerRef
   pcbTraces: PcbTrace[]
+  traceLayerPours: PcbCopperPourBRep[]
   copperPours: PcbCopperPourBRep[]
 }
 
@@ -264,13 +266,38 @@ const getTraceCopperPourContexts = (
       [fromLayer, toLayer],
       [toLayer, fromLayer],
     ] as const) {
-      const layerTraces = pcbTraces.filter((pcbTrace) =>
-        pcbTrace.route.some(
-          (routePoint) =>
+      const traceLayerPours = copperPours.filter(
+        (copperPour) => String(copperPour.layer) === String(traceLayer),
+      )
+      const traceLayerPourBounds = getShapeUnionBounds(
+        traceLayerPours.map((copperPour) => copperPour.brep_shape),
+      )
+      const layerTraces = pcbTraces.filter((pcbTrace) => {
+        const layerWirePoints = pcbTrace.route.filter(
+          (routePoint): routePoint is PcbTraceRoutePointWire =>
             routePoint.route_type === "wire" &&
             String(routePoint.layer) === String(traceLayer),
-        ),
-      )
+        )
+        if (layerWirePoints.length === 0) return false
+
+        // When the trace layer also has a pour, only add route-aligned vias
+        // for a trace that crosses into that pour. Traces already contained
+        // by a full-board plane are handled by the regular pour grid.
+        return (
+          traceLayerPours.length === 0 ||
+          (traceLayerPourBounds !== undefined &&
+            layerWirePoints.some(
+              (routePoint) => routePoint.is_inside_copper_pour === true,
+            ) &&
+            layerWirePoints.some(
+              (routePoint) =>
+                routePoint.x < traceLayerPourBounds.minX ||
+                routePoint.x > traceLayerPourBounds.maxX ||
+                routePoint.y < traceLayerPourBounds.minY ||
+                routePoint.y > traceLayerPourBounds.maxY,
+            ))
+        )
+      })
       const layerPours = copperPours.filter(
         (copperPour) => String(copperPour.layer) === String(pourLayer),
       )
@@ -281,6 +308,7 @@ const getTraceCopperPourContexts = (
         sourceNet: sourceNetsById.get(sourceNetId),
         traceLayer,
         pcbTraces: layerTraces,
+        traceLayerPours,
         copperPours: layerPours,
       })
     }
@@ -501,6 +529,9 @@ export class ViaStitchSolver extends BaseSolver {
     const pourShapes = context.copperPours.map(
       (copperPour) => copperPour.brep_shape,
     )
+    const traceLayerShapes = context.traceLayerPours.map(
+      (copperPour) => copperPour.brep_shape,
+    )
     const viaRadius = this.options.viaOuterDiameter / 2
     const requiredCopperRadius = viaRadius + this.options.pourEdgeClearance
     const requiredObstacleRadius = viaRadius + this.options.obstacleClearance
@@ -512,11 +543,12 @@ export class ViaStitchSolver extends BaseSolver {
 
     for (const center of candidateCenters) {
       const containingTrace = context.pcbTraces.find((pcbTrace) =>
-        isViaAnnulusInsideTraceCopper({
+        isViaAnnulusInsideTraceOrShapeUnion({
           center,
           radius: requiredCopperRadius,
           pcbTrace,
           layer: context.traceLayer,
+          shapes: traceLayerShapes,
         }),
       )
       if (
