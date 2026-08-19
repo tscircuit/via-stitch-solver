@@ -74,3 +74,8 @@ thick VCC trace from the connector into that local pour. The example in
 two GND pads and a thick entering GND trace. Both examples keep their signal
 pads outside the pour, receive a regular local stitch grid plus at most one
 entry via per eligible trace, and never add a via row along the trace corridor.
+
+The combined example in `examples/dual-net-pour-entry-stitching.tsx` places a
+local VCC pour pair and a separate local GND pour pair on the same board. The
+autorouter takes one thick trace of each net into its matching pour, and the
+solver emits independently net-labeled stitch grids and entry vias for both.
