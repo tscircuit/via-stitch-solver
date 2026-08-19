@@ -54,7 +54,7 @@ const isOnGrid = (
     (point.y - origin.y) / pitch - Math.round((point.y - origin.y) / pitch),
   ) < 1e-8
 
-test("stitches GND pours around entering signal and ground traces", async () => {
+test("stitches a local GND pour around two component pads", async () => {
   const circuit = new Circuit()
   circuit.add(<GroundPourTraceEntryStitchingCircuit />)
   await circuit.renderUntilSettled()
@@ -110,6 +110,13 @@ test("stitches GND pours around entering signal and ground traces", async () => 
     .filter((copperPour) => copperPour.layer === "bottom")
     .map((copperPour) => copperPour.brep_shape)
   const topGroundBounds = getShapeUnionBounds(topGroundShapes)!
+  const padsInsidePour = circuitJson.filter(
+    (element) =>
+      element.type === "pcb_smtpad" &&
+      element.shape !== "polygon" &&
+      isPointInShapeUnion({ x: element.x, y: element.y }, topGroundShapes),
+  )
+  expect(padsInsidePour).toHaveLength(2)
   const groundEntryTraces = groundTraces.filter((pcbTrace) => {
     const topWirePoints = pcbTrace.route.filter(
       (routePoint): routePoint is PcbTraceRoutePointWire =>
@@ -133,7 +140,7 @@ test("stitches GND pours around entering signal and ground traces", async () => 
     groundEntryTraces.every((pcbTrace) =>
       pcbTrace.route.every(
         (routePoint) =>
-          routePoint.route_type !== "wire" || routePoint.width === 0.3,
+          routePoint.route_type !== "wire" || routePoint.width === 0.6,
       ),
     ),
   ).toBe(true)
@@ -158,7 +165,7 @@ test("stitches GND pours around entering signal and ground traces", async () => 
   const output = solver.getOutput()
 
   expect(output.processedCopperPourPairCount).toBe(1)
-  expect(output.pcbVias.length).toBeGreaterThan(15)
+  expect(output.pcbVias.length).toBeGreaterThan(2)
   expect(
     output.pcbVias.every(
       (pcbVia) => pcbVia.source_net_id === groundNet!.source_net_id,

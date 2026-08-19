@@ -28,7 +28,7 @@ const isOnGrid = (
     (point.y - origin.y) / pitch - Math.round((point.y - origin.y) / pitch),
   ) < 1e-8
 
-test("places one entry via instead of a row along a VCC trace", async () => {
+test("stitches a local VCC pour around two component pads", async () => {
   const circuit = new Circuit()
   circuit.add(<PowerPolygonEntryStitchingCircuit />)
   await circuit.renderUntilSettled()
@@ -75,6 +75,13 @@ test("places one entry via instead of a row along a VCC trace", async () => {
     .filter((pour) => pour.layer === "bottom")
     .map((pour) => pour.brep_shape)
   const topBounds = getShapeUnionBounds(topShapes)!
+  const padsInsidePour = circuitJson.filter(
+    (element) =>
+      element.type === "pcb_smtpad" &&
+      element.shape !== "polygon" &&
+      isPointInShapeUnion({ x: element.x, y: element.y }, topShapes),
+  )
+  expect(padsInsidePour).toHaveLength(2)
   const enteringPowerTraces = powerTraces.filter((pcbTrace) => {
     const topWirePoints = pcbTrace.route.filter(
       (routePoint): routePoint is PcbTraceRoutePointWire =>
@@ -116,7 +123,7 @@ test("places one entry via instead of a row along a VCC trace", async () => {
     (pcbVia) => !isOnGrid(pcbVia, gridOrigin, viaPitch),
   )
   expect(output.processedCopperPourPairCount).toBe(1)
-  expect(output.pcbVias.length).toBeGreaterThan(10)
+  expect(output.pcbVias.length).toBeGreaterThan(2)
   expect(entryVias).toHaveLength(enteringPowerTraces.length)
   expect(
     entryVias.every(

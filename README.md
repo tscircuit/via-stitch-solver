@@ -67,14 +67,10 @@ On the trace layer, that copper can come from the union of the trace and its
 same-net pour. Traces connected to a different net are never used as stitch
 guides.
 
-The example in `examples/power-polygon-entry-stitching.tsx` uses a VCC trace
-that the autorouter takes into fixed top/bottom VCC polygons. It receives one
-entry via in addition to the regular pour grid; there is no row of vias along
-the power-trace corridor.
-
-The example in `examples/ground-pour-trace-entry-stitching.tsx` models the
-common layout where the autorouter joins outside GND pads and carries one GND
-connection into a fixed top/bottom GND polygon while signal and power routes
-cut clearance channels through it. The GND via grid stays inside the remaining
-overlap, and the entry via is kept out of foreign-net trace channels and
-component pads.
+The example in `examples/power-polygon-entry-stitching.tsx` uses a small VCC
+polygon around only the VCC pads of two capacitors. The autorouter carries a
+thick VCC trace from the connector into that local pour. The example in
+`examples/ground-pour-trace-entry-stitching.tsx` mirrors that arrangement for
+two GND pads and a thick entering GND trace. Both examples keep their signal
+pads outside the pour, receive a regular local stitch grid plus at most one
+entry via per eligible trace, and never add a via row along the trace corridor.

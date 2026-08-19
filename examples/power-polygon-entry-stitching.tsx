@@ -1,57 +1,65 @@
 export const powerEntryPourOutline = [
-  { x: -1, y: -8 },
-  { x: 14, y: -7 },
-  { x: 14, y: 7 },
-  { x: 4, y: 9 },
-  { x: -1, y: 5 },
-  { x: -1, y: -8 },
+  { x: -1.5, y: -4.2 },
+  { x: 4.6, y: -4.2 },
+  { x: 4.6, y: 4.2 },
+  { x: -1.5, y: 4.2 },
+  { x: -1.5, y: -4.2 },
 ]
 
 export const PowerPolygonEntryStitchingCircuit = () => (
-  <board width="34mm" height="22mm">
+  <board width="32mm" height="20mm">
     <pcbnotetext
       pcbX={0}
-      pcbY={9.8}
-      fontSize={0.5}
-      text="VCC enters paired polygon pours with one entry via, not a corridor row"
+      pcbY={9}
+      fontSize={0.48}
+      text="A local VCC pour covers only two capacitor pads and their entering power trace"
     />
     <net name="VCC" isPowerNet />
-    <net name="GND" isGroundNet />
 
-    <pinheader name="J1" pinCount={2} pcbX={-13} pcbY={0} />
-    <chip
-      name="U1"
-      footprint="soic8"
-      pcbX={8}
+    <pinheader
+      name="J1"
+      pinCount={2}
+      pcbX={-13}
       pcbY={0}
-      connections={{ pin1: "net.VCC", pin4: "net.GND" }}
+      connections={{ pin1: "net.VCC" }}
     />
+    <chip name="U1" footprint="qfp16" pcbX={11} pcbY={0} />
     <capacitor
       name="C1"
       capacitance="10uF"
-      footprint="1206"
-      pcbX={-7}
-      pcbY={-6}
-      connections={{ pin1: "net.VCC", pin2: "net.GND" }}
+      footprint="0805"
+      pcbX={5}
+      pcbY={2}
+      connections={{ pin1: "net.VCC" }}
     />
     <capacitor
       name="C2"
       capacitance="100nF"
-      footprint="0603"
-      pcbX={6}
-      pcbY={6}
-      connections={{ pin1: "net.VCC", pin2: "net.GND" }}
-    />
-    <resistor
-      name="R1"
-      resistance="10k"
       footprint="0805"
-      pcbX={11}
-      pcbY={-5}
-      connections={{ pin1: "U1.pin2", pin2: "net.GND" }}
+      pcbX={5}
+      pcbY={-2}
+      connections={{ pin1: "net.VCC" }}
     />
 
-    <trace name="VCC_ENTRY" from=".J1 > .pin1" to="net.VCC" thickness="0.5mm" />
+    <trace name="VCC_ENTRY" from=".J1 > .pin1" to="net.VCC" thickness="0.6mm" />
+    <trace
+      name="SIGNAL_C1"
+      from=".U1 > .pin5"
+      to=".C1 > .pin2"
+      thickness="0.25mm"
+    />
+    <trace
+      name="SIGNAL_C2"
+      from=".U1 > .pin6"
+      to=".C2 > .pin2"
+      thickness="0.25mm"
+    />
+    <trace
+      name="RETURN"
+      from=".J1 > .pin2"
+      to=".U1 > .pin1"
+      thickness="0.4mm"
+    />
 
     <copperpour
       connectsTo="net.VCC"

@@ -1,83 +1,64 @@
 export const traceEntryGroundPourOutline = [
-  { x: -2, y: -10 },
-  { x: 16, y: -10 },
-  { x: 16, y: 10 },
-  { x: -2, y: 10 },
-  { x: -2, y: -10 },
+  { x: -4.6, y: -4.2 },
+  { x: 1.5, y: -4.2 },
+  { x: 1.5, y: 4.2 },
+  { x: -4.6, y: 4.2 },
+  { x: -4.6, y: -4.2 },
 ]
 
 export const GroundPourTraceEntryStitchingCircuit = () => (
-  <board width="36mm" height="24mm">
+  <board width="32mm" height="20mm">
     <pcbnotetext
       pcbX={0}
-      pcbY={11}
+      pcbY={9}
       fontSize={0.48}
-      text="Signal and power traces cross a stitched top/bottom GND pour"
+      text="A local GND pour covers only two capacitor pads and their entering ground trace"
     />
     <net name="GND" isGroundNet />
-    <net name="VCC" isPowerNet />
 
-    <chip name="U1" footprint="qfp16" pcbX={-12} pcbY={0} />
-    <chip
-      name="U2"
-      footprint="soic8"
-      pcbX={9}
+    <chip name="U1" footprint="qfp16" pcbX={-11} pcbY={0} />
+    <pinheader
+      name="J1"
+      pinCount={2}
+      pcbX={13}
       pcbY={0}
-      connections={{ pin4: "net.GND" }}
+      connections={{ pin1: "net.GND" }}
     />
     <capacitor
       name="C1"
-      capacitance="1uF"
+      capacitance="10uF"
       footprint="0805"
-      pcbX={-6}
-      pcbY={6}
-      connections={{ pin1: "net.VCC" }}
+      pcbX={-5}
+      pcbY={2}
+      connections={{ pin2: "net.GND" }}
     />
     <capacitor
       name="C2"
       capacitance="100nF"
-      footprint="0603"
-      pcbX={-6}
-      pcbY={-6}
-      connections={{ pin1: "net.VCC" }}
-    />
-    <resistor name="R1" resistance="10k" footprint="0402" pcbX={4} pcbY={8} />
-    <resistor
-      name="R2"
-      resistance="4.7k"
-      footprint="1206"
-      pcbX={10}
-      pcbY={-7}
+      footprint="0805"
+      pcbX={-5}
+      pcbY={-2}
+      connections={{ pin2: "net.GND" }}
     />
 
+    <trace name="GND_ENTRY" from=".J1 > .pin1" to="net.GND" thickness="0.6mm" />
     <trace
-      name="SIGNAL_A"
+      name="SIGNAL_C1"
       from=".U1 > .pin5"
-      to=".U2 > .pin1"
+      to=".C1 > .pin1"
       thickness="0.25mm"
     />
     <trace
-      name="SIGNAL_B"
+      name="SIGNAL_C2"
       from=".U1 > .pin6"
-      to=".U2 > .pin2"
+      to=".C2 > .pin1"
       thickness="0.25mm"
     />
     <trace
-      name="VCC_MAIN"
-      path={[".U1 > .pin1", "net.VCC", ".U2 > .pin3"]}
-      thickness="0.6mm"
-    />
-    <trace
-      name="GND_C1_ENTRY"
-      from=".C1 > .pin2"
-      to="net.GND"
-      thickness="0.3mm"
-    />
-    <trace
-      name="GND_C2_ENTRY"
-      from=".C2 > .pin2"
-      to="net.GND"
-      thickness="0.3mm"
+      name="SUPPLY"
+      from=".U1 > .pin1"
+      to=".J1 > .pin2"
+      thickness="0.4mm"
     />
 
     <copperpour
