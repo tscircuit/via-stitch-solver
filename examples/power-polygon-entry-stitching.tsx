@@ -12,7 +12,7 @@ export const PowerPolygonEntryStitchingCircuit = () => (
       pcbX={0}
       pcbY={9}
       fontSize={0.48}
-      text="A local VCC pour covers only two capacitor pads and their entering power trace"
+      text="A top VCC trace enters a compact explicit bottom-layer pour"
     />
     <net name="VCC" isPowerNet />
 
@@ -61,12 +61,6 @@ export const PowerPolygonEntryStitchingCircuit = () => (
       thickness="0.4mm"
     />
 
-    <copperpour
-      connectsTo="net.VCC"
-      layer="top"
-      clearance="0.3mm"
-      outline={powerEntryPourOutline}
-    />
     <copperpour
       connectsTo="net.VCC"
       layer="bottom"

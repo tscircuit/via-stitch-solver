@@ -28,19 +28,19 @@ export const DualNetPourEntryStitchingCircuit = () => (
       pcbX={0}
       pcbY={11}
       fontSize={0.48}
-      text="Separate local VCC and GND pours are stitched around their pads and entry traces"
+      text="Top VCC and GND traces enter separate explicit bottom-layer pours"
     />
     <pcbnotetext
       pcbX={-10}
       pcbY={8}
       fontSize={0.42}
-      text="VCC pour (top + bottom)"
+      text="VCC explicit bottom pour"
     />
     <pcbnotetext
       pcbX={10}
       pcbY={-8}
       fontSize={0.42}
-      text="GND pour (top + bottom)"
+      text="GND explicit bottom pour"
     />
     <net name="VCC" isPowerNet />
     <net name="GND" isGroundNet />
@@ -135,21 +135,9 @@ export const DualNetPourEntryStitchingCircuit = () => (
 
     <copperpour
       connectsTo="net.VCC"
-      layer="top"
-      clearance="0.3mm"
-      outline={dualNetVccPourOutline}
-    />
-    <copperpour
-      connectsTo="net.VCC"
       layer="bottom"
       clearance="0.3mm"
       outline={dualNetVccPourOutline}
-    />
-    <copperpour
-      connectsTo="net.GND"
-      layer="top"
-      clearance="0.3mm"
-      outline={dualNetGroundPourOutline}
     />
     <copperpour
       connectsTo="net.GND"

@@ -2,7 +2,7 @@ import { Circuit } from "@tscircuit/core"
 import { expect, test } from "bun:test"
 import type {
   BRepShape,
-  LayerRef,
+  PcbBoard,
   PcbCopperPourBRep,
   PcbTrace,
   PcbTraceRoutePointWire,
@@ -16,69 +16,57 @@ import {
   isPointInShapeUnion,
   isViaAnnulusInsideShapeUnion,
 } from "lib/geometry/brep-point-containment"
+import { isViaAnnulusInsideTraceCopper } from "lib/geometry/trace-copper"
 import { ViaStitchSolver } from "lib/index"
 
-const isOnGrid = (
-  point: { x: number; y: number },
-  origin: { x: number; y: number },
-  pitch: number,
-) =>
-  Math.abs(
-    (point.x - origin.x) / pitch - Math.round((point.x - origin.x) / pitch),
-  ) < 1e-8 &&
-  Math.abs(
-    (point.y - origin.y) / pitch - Math.round((point.y - origin.y) / pitch),
-  ) < 1e-8
-
-const getShapesByLayer = (pours: PcbCopperPourBRep[]) =>
-  new Map<LayerRef, BRepShape[]>(
-    (["top", "bottom"] as const).map((layer) => [
-      layer,
-      pours
-        .filter((pour) => pour.layer === layer)
-        .map((pour) => pour.brep_shape),
-    ]),
-  )
-
-const traceEntersPour = ({
+const traceEntersBottomPour = ({
   pcbTrace,
-  shapesByLayer,
+  bottomShapes,
 }: {
   pcbTrace: PcbTrace
-  shapesByLayer: Map<LayerRef, BRepShape[]>
-}) =>
-  [...shapesByLayer].some(([layer, shapes]) => {
-    const bounds = getShapeUnionBounds(shapes)
-    if (!bounds) return false
-    const wirePoints = pcbTrace.route.filter(
-      (routePoint): routePoint is PcbTraceRoutePointWire =>
-        routePoint.route_type === "wire" && routePoint.layer === layer,
+  bottomShapes: BRepShape[]
+}) => {
+  const bounds = getShapeUnionBounds(bottomShapes)
+  if (!bounds) return false
+  const topWirePoints = pcbTrace.route.filter(
+    (routePoint): routePoint is PcbTraceRoutePointWire =>
+      routePoint.route_type === "wire" && routePoint.layer === "top",
+  )
+  return (
+    topWirePoints.some((point) => isPointInShapeUnion(point, bottomShapes)) &&
+    topWirePoints.some(
+      (point) =>
+        point.x < bounds.minX ||
+        point.x > bounds.maxX ||
+        point.y < bounds.minY ||
+        point.y > bounds.maxY,
     )
-    return (
-      wirePoints.some((point) => isPointInShapeUnion(point, shapes)) &&
-      wirePoints.some(
-        (point) =>
-          point.x < bounds.minX ||
-          point.x > bounds.maxX ||
-          point.y < bounds.minY ||
-          point.y > bounds.maxY,
-      )
-    )
-  })
+  )
+}
 
-test("stitches separate VCC and GND pours with both nets entering", async () => {
+test("stitches top VCC and GND traces to separate bottom pours", async () => {
   const circuit = new Circuit()
   circuit.add(<DualNetPourEntryStitchingCircuit />)
   await circuit.renderUntilSettled()
   const circuitJson = circuit.getCircuitJson()
 
+  const pcbBoard = circuitJson.find(
+    (element): element is PcbBoard => element.type === "pcb_board",
+  )
   const sourceNets = circuitJson.filter(
     (element): element is SourceNet => element.type === "source_net",
   )
   const powerNet = sourceNets.find((sourceNet) => sourceNet.is_power)
   const groundNet = sourceNets.find((sourceNet) => sourceNet.is_ground)
+  expect(pcbBoard).toBeDefined()
   expect(powerNet).toBeDefined()
   expect(groundNet).toBeDefined()
+  const boardViaHoleDiameter = pcbBoard!.min_via_hole_diameter!
+  const boardViaPadDiameter = pcbBoard!.min_via_pad_diameter!
+  expect({ boardViaHoleDiameter, boardViaPadDiameter }).toEqual({
+    boardViaHoleDiameter: 0.2,
+    boardViaPadDiameter: 0.3,
+  })
 
   const targetNetIds = new Set([
     powerNet!.source_net_id,
@@ -109,42 +97,55 @@ test("stitches separate VCC and GND pours with both nets entering", async () => 
     }
   }
 
-  const poursByNetId = new Map<string, PcbCopperPourBRep[]>()
+  const bottomPoursByNetId = new Map<string, PcbCopperPourBRep[]>()
   for (const element of circuitJson) {
     if (
       element.type !== "pcb_copper_pour" ||
       element.shape !== "brep" ||
+      element.layer !== "bottom" ||
       !element.source_net_id ||
       !targetNetIds.has(element.source_net_id)
     ) {
       continue
     }
-    const netPours = poursByNetId.get(element.source_net_id) ?? []
+    const netPours = bottomPoursByNetId.get(element.source_net_id) ?? []
     netPours.push(element)
-    poursByNetId.set(element.source_net_id, netPours)
+    bottomPoursByNetId.set(element.source_net_id, netPours)
   }
 
-  const shapesByNetAndLayer = new Map<string, Map<LayerRef, BRepShape[]>>()
-  for (const sourceNetId of targetNetIds) {
-    const pours = poursByNetId.get(sourceNetId) ?? []
-    expect(new Set(pours.map((pour) => pour.layer))).toEqual(
-      new Set(["top", "bottom"]),
-    )
-    const shapesByLayer = getShapesByLayer(pours)
-    shapesByNetAndLayer.set(sourceNetId, shapesByLayer)
+  expect(
+    circuitJson
+      .filter(
+        (element): element is PcbCopperPourBRep =>
+          element.type === "pcb_copper_pour" &&
+          element.shape === "brep" &&
+          element.source_net_id !== undefined &&
+          targetNetIds.has(element.source_net_id),
+      )
+      .every((pour) => pour.layer === "bottom"),
+  ).toBe(true)
 
-    const topShapes = shapesByLayer.get("top")!
+  const enteringTracesByNetId = new Map<string, PcbTrace[]>()
+  const bottomShapesByNetId = new Map<string, BRepShape[]>()
+  for (const sourceNetId of targetNetIds) {
+    const bottomShapes = (bottomPoursByNetId.get(sourceNetId) ?? []).map(
+      (pour) => pour.brep_shape,
+    )
+    bottomShapesByNetId.set(sourceNetId, bottomShapes)
+    expect(bottomShapes.length).toBeGreaterThan(0)
+
     const padsInsidePour = circuitJson.filter(
       (element) =>
         element.type === "pcb_smtpad" &&
         element.shape !== "polygon" &&
-        isPointInShapeUnion({ x: element.x, y: element.y }, topShapes),
+        isPointInShapeUnion({ x: element.x, y: element.y }, bottomShapes),
     )
     expect(padsInsidePour).toHaveLength(2)
 
     const enteringTraces = (tracesByNetId.get(sourceNetId) ?? []).filter(
-      (pcbTrace) => traceEntersPour({ pcbTrace, shapesByLayer }),
+      (pcbTrace) => traceEntersBottomPour({ pcbTrace, bottomShapes }),
     )
+    enteringTracesByNetId.set(sourceNetId, enteringTraces)
     expect(enteringTraces).toHaveLength(1)
     expect(
       enteringTraces[0]!.route.every(
@@ -154,48 +155,45 @@ test("stitches separate VCC and GND pours with both nets entering", async () => 
     ).toBe(true)
   }
 
-  const gridOrigin = { x: 0, y: 0.7 }
-  const viaPitch = 2.4
+  const pourEdgeClearance = 0.1
   const solver = new ViaStitchSolver({
     circuitJson,
     options: {
       sourceNetIds: [...targetNetIds],
-      viaPitch,
-      viaHoleDiameter: 0.3,
-      viaOuterDiameter: 0.6,
-      pourEdgeClearance: 0.1,
+      viaPitch: 2.4,
+      pourEdgeClearance,
       obstacleClearance: 0.2,
-      gridOrigin,
     },
   })
   solver.solve()
   const output = solver.getOutput()
 
-  expect(output.processedCopperPourPairCount).toBe(2)
+  expect(output.processedCopperPourPairCount).toBe(0)
+  expect(output.pcbVias).toHaveLength(2)
+  const requiredCopperRadius = boardViaPadDiameter / 2 + pourEdgeClearance
   for (const sourceNetId of targetNetIds) {
     const netVias = output.pcbVias.filter(
       (pcbVia) => pcbVia.source_net_id === sourceNetId,
     )
-    expect(netVias.length).toBeGreaterThan(2)
-    expect(
-      netVias.filter((pcbVia) => !isOnGrid(pcbVia, gridOrigin, viaPitch)),
-    ).toHaveLength(1)
+    expect(netVias).toHaveLength(1)
+    const stitchVia = netVias[0]!
+    expect(stitchVia.hole_diameter).toBe(boardViaHoleDiameter)
+    expect(stitchVia.outer_diameter).toBe(boardViaPadDiameter)
 
-    const shapesByLayer = shapesByNetAndLayer.get(sourceNetId)!
     expect(
-      netVias.every(
-        (pcbVia) =>
-          isViaAnnulusInsideShapeUnion({
-            center: pcbVia,
-            radius: 0.4,
-            shapes: shapesByLayer.get("top")!,
-          }) &&
-          isViaAnnulusInsideShapeUnion({
-            center: pcbVia,
-            radius: 0.4,
-            shapes: shapesByLayer.get("bottom")!,
-          }),
-      ),
+      isViaAnnulusInsideShapeUnion({
+        center: stitchVia,
+        radius: requiredCopperRadius,
+        shapes: bottomShapesByNetId.get(sourceNetId)!,
+      }),
+    ).toBe(true)
+    expect(
+      isViaAnnulusInsideTraceCopper({
+        center: stitchVia,
+        radius: requiredCopperRadius,
+        pcbTrace: enteringTracesByNetId.get(sourceNetId)![0]!,
+        layer: "top",
+      }),
     ).toBe(true)
   }
 

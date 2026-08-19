@@ -1,6 +1,7 @@
 import { Circuit } from "@tscircuit/core"
 import { expect, test } from "bun:test"
 import type {
+  PcbBoard,
   PcbCopperPourBRep,
   PcbTrace,
   PcbTraceRoutePointWire,
@@ -14,26 +15,18 @@ import {
   isPointInShapeUnion,
   isViaAnnulusInsideShapeUnion,
 } from "lib/geometry/brep-point-containment"
+import { isViaAnnulusInsideTraceCopper } from "lib/geometry/trace-copper"
 import { ViaStitchSolver } from "lib/index"
 
-const isOnGrid = (
-  point: { x: number; y: number },
-  origin: { x: number; y: number },
-  pitch: number,
-) =>
-  Math.abs(
-    (point.x - origin.x) / pitch - Math.round((point.x - origin.x) / pitch),
-  ) < 1e-8 &&
-  Math.abs(
-    (point.y - origin.y) / pitch - Math.round((point.y - origin.y) / pitch),
-  ) < 1e-8
-
-test("stitches a local VCC pour around two component pads", async () => {
+test("stitches a top VCC trace to an explicit bottom pour", async () => {
   const circuit = new Circuit()
   circuit.add(<PowerPolygonEntryStitchingCircuit />)
   await circuit.renderUntilSettled()
   const circuitJson = circuit.getCircuitJson()
 
+  const pcbBoard = circuitJson.find(
+    (element): element is PcbBoard => element.type === "pcb_board",
+  )
   const powerNet = circuitJson.find(
     (element): element is SourceNet =>
       element.type === "source_net" && element.is_power === true,
@@ -56,32 +49,40 @@ test("stitches a local VCC pour around two component pads", async () => {
         powerNet!.source_net_id
     )
   })
-  const powerPours = circuitJson.filter(
+  const explicitBottomPours = circuitJson.filter(
     (element): element is PcbCopperPourBRep =>
       element.type === "pcb_copper_pour" &&
       element.shape === "brep" &&
+      element.layer === "bottom" &&
       element.source_net_id === powerNet?.source_net_id,
   )
 
+  expect(pcbBoard).toBeDefined()
   expect(powerNet).toBeDefined()
-  expect(new Set(powerPours.map((pour) => pour.layer))).toEqual(
-    new Set(["top", "bottom"]),
-  )
+  expect(
+    circuitJson.filter(
+      (element) =>
+        element.type === "pcb_copper_pour" &&
+        element.source_net_id === powerNet!.source_net_id,
+    ),
+  ).toEqual(explicitBottomPours)
+  const boardViaHoleDiameter = pcbBoard!.min_via_hole_diameter!
+  const boardViaPadDiameter = pcbBoard!.min_via_pad_diameter!
+  expect({ boardViaHoleDiameter, boardViaPadDiameter }).toEqual({
+    boardViaHoleDiameter: 0.2,
+    boardViaPadDiameter: 0.3,
+  })
 
-  const topShapes = powerPours
-    .filter((pour) => pour.layer === "top")
-    .map((pour) => pour.brep_shape)
-  const bottomShapes = powerPours
-    .filter((pour) => pour.layer === "bottom")
-    .map((pour) => pour.brep_shape)
-  const topBounds = getShapeUnionBounds(topShapes)!
+  const bottomShapes = explicitBottomPours.map((pour) => pour.brep_shape)
+  const bottomBounds = getShapeUnionBounds(bottomShapes)!
   const padsInsidePour = circuitJson.filter(
     (element) =>
       element.type === "pcb_smtpad" &&
       element.shape !== "polygon" &&
-      isPointInShapeUnion({ x: element.x, y: element.y }, topShapes),
+      isPointInShapeUnion({ x: element.x, y: element.y }, bottomShapes),
   )
   expect(padsInsidePour).toHaveLength(2)
+
   const enteringPowerTraces = powerTraces.filter((pcbTrace) => {
     const topWirePoints = pcbTrace.route.filter(
       (routePoint): routePoint is PcbTraceRoutePointWire =>
@@ -89,62 +90,60 @@ test("stitches a local VCC pour around two component pads", async () => {
     )
     return (
       topWirePoints.some((routePoint) =>
-        isPointInShapeUnion(routePoint, topShapes),
+        isPointInShapeUnion(routePoint, bottomShapes),
       ) &&
       topWirePoints.some(
         (routePoint) =>
-          routePoint.x < topBounds.minX ||
-          routePoint.x > topBounds.maxX ||
-          routePoint.y < topBounds.minY ||
-          routePoint.y > topBounds.maxY,
+          routePoint.x < bottomBounds.minX ||
+          routePoint.x > bottomBounds.maxX ||
+          routePoint.y < bottomBounds.minY ||
+          routePoint.y > bottomBounds.maxY,
       )
     )
   })
   expect(enteringPowerTraces).toHaveLength(1)
+  expect(
+    enteringPowerTraces[0]!.route.every(
+      (routePoint) =>
+        routePoint.route_type !== "wire" || routePoint.width === 0.6,
+    ),
+  ).toBe(true)
 
-  const gridOrigin = { x: 0.5, y: 0.5 }
-  const viaPitch = 2.5
+  const pourEdgeClearance = 0.1
   const solver = new ViaStitchSolver({
     circuitJson,
     options: {
       sourceNetIds: [powerNet!.source_net_id],
-      viaPitch,
-      viaHoleDiameter: 0.3,
-      viaOuterDiameter: 0.6,
-      pourEdgeClearance: 0.1,
+      viaPitch: 2.5,
+      pourEdgeClearance,
       obstacleClearance: 0.2,
-      gridOrigin,
     },
   })
   solver.solve()
   const output = solver.getOutput()
 
-  const entryVias = output.pcbVias.filter(
-    (pcbVia) => !isOnGrid(pcbVia, gridOrigin, viaPitch),
-  )
-  expect(output.processedCopperPourPairCount).toBe(1)
-  expect(output.pcbVias.length).toBeGreaterThan(2)
-  expect(entryVias).toHaveLength(enteringPowerTraces.length)
-  expect(
-    entryVias.every(
-      (pcbVia) => pcbVia.source_net_id === powerNet!.source_net_id,
-    ),
-  ).toBe(true)
+  expect(output.processedCopperPourPairCount).toBe(0)
+  expect(output.pcbVias).toHaveLength(1)
+  const stitchVia = output.pcbVias[0]!
+  expect(stitchVia.source_net_id).toBe(powerNet!.source_net_id)
+  expect(stitchVia.hole_diameter).toBe(boardViaHoleDiameter)
+  expect(stitchVia.outer_diameter).toBe(boardViaPadDiameter)
 
+  const requiredCopperRadius = boardViaPadDiameter / 2 + pourEdgeClearance
   expect(
-    output.pcbVias.every(
-      (pcbVia) =>
-        isViaAnnulusInsideShapeUnion({
-          center: pcbVia,
-          radius: 0.4,
-          shapes: topShapes,
-        }) &&
-        isViaAnnulusInsideShapeUnion({
-          center: pcbVia,
-          radius: 0.4,
-          shapes: bottomShapes,
-        }),
-    ),
+    isViaAnnulusInsideShapeUnion({
+      center: stitchVia,
+      radius: requiredCopperRadius,
+      shapes: bottomShapes,
+    }),
+  ).toBe(true)
+  expect(
+    isViaAnnulusInsideTraceCopper({
+      center: stitchVia,
+      radius: requiredCopperRadius,
+      pcbTrace: enteringPowerTraces[0]!,
+      layer: "top",
+    }),
   ).toBe(true)
 
   const svg = convertCircuitJsonToPcbSvg([...circuitJson, ...output.pcbVias])

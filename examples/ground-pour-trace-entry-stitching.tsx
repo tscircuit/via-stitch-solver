@@ -12,7 +12,7 @@ export const GroundPourTraceEntryStitchingCircuit = () => (
       pcbX={0}
       pcbY={9}
       fontSize={0.48}
-      text="A local GND pour covers only two capacitor pads and their entering ground trace"
+      text="A top GND trace enters a compact explicit bottom-layer pour"
     />
     <net name="GND" isGroundNet />
 
@@ -61,12 +61,6 @@ export const GroundPourTraceEntryStitchingCircuit = () => (
       thickness="0.4mm"
     />
 
-    <copperpour
-      connectsTo="net.GND"
-      layer="top"
-      clearance="0.3mm"
-      outline={traceEntryGroundPourOutline}
-    />
     <copperpour
       connectsTo="net.GND"
       layer="bottom"

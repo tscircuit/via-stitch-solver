@@ -2,6 +2,7 @@ import { BaseSolver } from "@tscircuit/solver-utils"
 import type {
   BRepShape,
   LayerRef,
+  PcbBoard,
   PcbCopperPourBRep,
   PcbTrace,
   PcbTraceRoutePointWire,
@@ -21,13 +22,12 @@ import {
 } from "../geometry/circuit-element-obstacles"
 import {
   getTraceCopperCandidateCenters,
-  isViaAnnulusInsideTraceOrShapeUnion,
+  isViaAnnulusInsideTraceCopper,
 } from "../geometry/trace-copper"
 import type {
   ResolvedViaStitchSolverOptions,
   ViaStitchPcbVia,
   ViaStitchSolverInput,
-  ViaStitchSolverOptions,
   ViaStitchSolverOutput,
 } from "../types"
 
@@ -43,8 +43,7 @@ interface TraceCopperPourContext {
   sourceNet?: SourceNet
   traceLayer: LayerRef
   pcbTraces: PcbTrace[]
-  traceLayerPours: PcbCopperPourBRep[]
-  copperPours: PcbCopperPourBRep[]
+  explicitPours: PcbCopperPourBRep[]
 }
 
 interface OccupiedVia {
@@ -54,22 +53,29 @@ interface OccupiedVia {
 
 const DEFAULT_LAYERS = ["top", "bottom"] as const
 
-const resolveOptions = (
-  options: ViaStitchSolverOptions = {},
-): ResolvedViaStitchSolverOptions => {
+const resolveOptions = ({
+  circuitJson,
+  options = {},
+}: ViaStitchSolverInput): ResolvedViaStitchSolverOptions => {
+  const pcbBoard = circuitJson.find(
+    (element): element is PcbBoard => element.type === "pcb_board",
+  )
+  const viaHoleDiameter =
+    options.viaHoleDiameter ?? pcbBoard?.min_via_hole_diameter ?? 0.2
+  const viaOuterDiameter =
+    options.viaOuterDiameter ?? pcbBoard?.min_via_pad_diameter ?? 0.3
   const resolvedOptions: ResolvedViaStitchSolverOptions = {
     sourceNetIds: options.sourceNetIds
       ? new Set(options.sourceNetIds)
       : undefined,
     layers: options.layers ?? DEFAULT_LAYERS,
     viaPitch: options.viaPitch ?? 2,
-    viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
-    viaOuterDiameter: options.viaOuterDiameter ?? 0.6,
+    viaHoleDiameter,
+    viaOuterDiameter,
     pourEdgeClearance: options.pourEdgeClearance ?? 0.2,
     obstacleClearance: options.obstacleClearance ?? 0.2,
     minimumViaSeparation:
-      options.minimumViaSeparation ??
-      Math.max(options.viaOuterDiameter ?? 0.6, 0.8),
+      options.minimumViaSeparation ?? Math.max(viaOuterDiameter, 0.8),
     gridOrigin: options.gridOrigin ?? { x: 0, y: 0 },
     isTented: options.isTented ?? true,
   }
@@ -270,13 +276,13 @@ const getTraceCopperPourContexts = (
       [fromLayer, toLayer],
       [toLayer, fromLayer],
     ] as const) {
-      const traceLayerPours = copperPours.filter(
-        (copperPour) => String(copperPour.layer) === String(traceLayer),
+      const explicitPours = copperPours.filter(
+        (copperPour) => String(copperPour.layer) === String(pourLayer),
       )
-      const traceLayerShapes = traceLayerPours.map(
+      const explicitPourShapes = explicitPours.map(
         (copperPour) => copperPour.brep_shape,
       )
-      const traceLayerPourBounds = getShapeUnionBounds(traceLayerShapes)
+      const explicitPourBounds = getShapeUnionBounds(explicitPourShapes)
       const layerTraces = pcbTraces.filter((pcbTrace) => {
         const layerWirePoints = pcbTrace.route.filter(
           (routePoint): routePoint is PcbTraceRoutePointWire =>
@@ -285,35 +291,31 @@ const getTraceCopperPourContexts = (
         )
         if (layerWirePoints.length === 0) return false
 
-        // When the trace layer also has a pour, only add route-aligned vias
-        // for a trace that crosses into that pour. Traces already contained
-        // by a full-board plane are handled by the regular pour grid.
+        // Trace copper exists only on the layer where the trace is routed.
+        // Stitch it to an explicit same-net pour on the opposite layer when
+        // the routed trace crosses into that pour's board-space outline.
         return (
-          traceLayerPourBounds !== undefined &&
+          explicitPourBounds !== undefined &&
           layerWirePoints.some((routePoint) =>
-            isPointInShapeUnion(routePoint, traceLayerShapes),
+            isPointInShapeUnion(routePoint, explicitPourShapes),
           ) &&
           layerWirePoints.some(
             (routePoint) =>
-              routePoint.x < traceLayerPourBounds.minX ||
-              routePoint.x > traceLayerPourBounds.maxX ||
-              routePoint.y < traceLayerPourBounds.minY ||
-              routePoint.y > traceLayerPourBounds.maxY,
+              routePoint.x < explicitPourBounds.minX ||
+              routePoint.x > explicitPourBounds.maxX ||
+              routePoint.y < explicitPourBounds.minY ||
+              routePoint.y > explicitPourBounds.maxY,
           )
         )
       })
-      const layerPours = copperPours.filter(
-        (copperPour) => String(copperPour.layer) === String(pourLayer),
-      )
-      if (layerTraces.length === 0 || layerPours.length === 0) continue
+      if (layerTraces.length === 0 || explicitPours.length === 0) continue
 
       contexts.push({
         sourceNetId,
         sourceNet,
         traceLayer,
         pcbTraces: layerTraces,
-        traceLayerPours,
-        copperPours: layerPours,
+        explicitPours,
       })
     }
   }
@@ -387,7 +389,7 @@ export class ViaStitchSolver extends BaseSolver {
 
   constructor(private readonly input: ViaStitchSolverInput) {
     super()
-    this.options = resolveOptions(input.options)
+    this.options = resolveOptions(input)
     this.copperPourPairContexts = getCopperPourPairContexts(input, this.options)
     this.traceCopperPourContexts = getTraceCopperPourContexts(
       input,
@@ -530,30 +532,27 @@ export class ViaStitchSolver extends BaseSolver {
   }
 
   private processTraceCopperPour(context: TraceCopperPourContext): void {
-    const pourShapes = context.copperPours.map(
-      (copperPour) => copperPour.brep_shape,
-    )
-    const traceLayerShapes = context.traceLayerPours.map(
+    const explicitPourShapes = context.explicitPours.map(
       (copperPour) => copperPour.brep_shape,
     )
     const viaRadius = this.options.viaOuterDiameter / 2
     const requiredCopperRadius = viaRadius + this.options.pourEdgeClearance
     const requiredObstacleRadius = viaRadius + this.options.obstacleClearance
-    const traceLayerBounds = getShapeUnionBounds(traceLayerShapes)
-    if (!traceLayerBounds) return
+    const explicitPourBounds = getShapeUnionBounds(explicitPourShapes)
+    if (!explicitPourBounds) return
 
-    const isOutsideTraceLayerBounds = (point: Point) =>
-      point.x < traceLayerBounds.minX ||
-      point.x > traceLayerBounds.maxX ||
-      point.y < traceLayerBounds.minY ||
-      point.y > traceLayerBounds.maxY
+    const isOutsideExplicitPourBounds = (point: Point) =>
+      point.x < explicitPourBounds.minX ||
+      point.x > explicitPourBounds.maxX ||
+      point.y < explicitPourBounds.minY ||
+      point.y > explicitPourBounds.maxY
 
     for (const pcbTrace of context.pcbTraces) {
       const outsideWirePoints = pcbTrace.route.filter(
         (routePoint): routePoint is PcbTraceRoutePointWire =>
           routePoint.route_type === "wire" &&
           String(routePoint.layer) === String(context.traceLayer) &&
-          isOutsideTraceLayerBounds(routePoint),
+          isOutsideExplicitPourBounds(routePoint),
       )
       const distanceToClosestOutsidePoint = (center: Point) =>
         Math.min(
@@ -573,18 +572,16 @@ export class ViaStitchSolver extends BaseSolver {
 
       const entryCenter = entryCandidateCenters.find(
         (center) =>
-          isPointInShapeUnion(center, traceLayerShapes) &&
-          isViaAnnulusInsideTraceOrShapeUnion({
+          isViaAnnulusInsideTraceCopper({
             center,
             radius: requiredCopperRadius,
             pcbTrace,
             layer: context.traceLayer,
-            shapes: traceLayerShapes,
           }) &&
           isViaAnnulusInsideShapeUnion({
             center,
             radius: requiredCopperRadius,
-            shapes: pourShapes,
+            shapes: explicitPourShapes,
           }) &&
           !isTooCloseToOccupiedVia({
             center,
@@ -600,13 +597,14 @@ export class ViaStitchSolver extends BaseSolver {
       )
       if (!entryCenter) continue
 
-      // One via is enough to connect a trace as it enters the paired polygon
-      // pours. Do not continue sampling vias down the routed trace corridor.
+      // One via is enough to connect the routed-layer trace copper to the
+      // explicit opposite-layer pour. Do not continue sampling vias down the
+      // routed trace corridor.
       this.addVia({
         center: entryCenter,
         sourceNetId: context.sourceNetId,
         sourceNet: context.sourceNet,
-        referencePour: context.copperPours[0]!,
+        referencePour: context.explicitPours[0]!,
       })
     }
   }
