@@ -12,6 +12,7 @@ import type {
 } from "circuit-json"
 import {
   getShapeUnionBounds,
+  isPointInShapeUnion,
   isViaAnnulusInsideShapeUnion,
 } from "../geometry/brep-point-containment"
 import {
@@ -261,6 +262,9 @@ const getTraceCopperPourContexts = (
   const contexts: TraceCopperPourContext[] = []
   const [fromLayer, toLayer] = options.layers
   for (const [sourceNetId, pcbTraces] of tracesBySourceNetId) {
+    const sourceNet = sourceNetsById.get(sourceNetId)
+    if (!sourceNet?.is_power && !sourceNet?.is_ground) continue
+
     const copperPours = poursBySourceNetId.get(sourceNetId) ?? []
     for (const [traceLayer, pourLayer] of [
       [fromLayer, toLayer],
@@ -269,9 +273,10 @@ const getTraceCopperPourContexts = (
       const traceLayerPours = copperPours.filter(
         (copperPour) => String(copperPour.layer) === String(traceLayer),
       )
-      const traceLayerPourBounds = getShapeUnionBounds(
-        traceLayerPours.map((copperPour) => copperPour.brep_shape),
+      const traceLayerShapes = traceLayerPours.map(
+        (copperPour) => copperPour.brep_shape,
       )
+      const traceLayerPourBounds = getShapeUnionBounds(traceLayerShapes)
       const layerTraces = pcbTraces.filter((pcbTrace) => {
         const layerWirePoints = pcbTrace.route.filter(
           (routePoint): routePoint is PcbTraceRoutePointWire =>
@@ -284,18 +289,17 @@ const getTraceCopperPourContexts = (
         // for a trace that crosses into that pour. Traces already contained
         // by a full-board plane are handled by the regular pour grid.
         return (
-          traceLayerPours.length === 0 ||
-          (traceLayerPourBounds !== undefined &&
-            layerWirePoints.some(
-              (routePoint) => routePoint.is_inside_copper_pour === true,
-            ) &&
-            layerWirePoints.some(
-              (routePoint) =>
-                routePoint.x < traceLayerPourBounds.minX ||
-                routePoint.x > traceLayerPourBounds.maxX ||
-                routePoint.y < traceLayerPourBounds.minY ||
-                routePoint.y > traceLayerPourBounds.maxY,
-            ))
+          traceLayerPourBounds !== undefined &&
+          layerWirePoints.some((routePoint) =>
+            isPointInShapeUnion(routePoint, traceLayerShapes),
+          ) &&
+          layerWirePoints.some(
+            (routePoint) =>
+              routePoint.x < traceLayerPourBounds.minX ||
+              routePoint.x > traceLayerPourBounds.maxX ||
+              routePoint.y < traceLayerPourBounds.minY ||
+              routePoint.y > traceLayerPourBounds.maxY,
+          )
         )
       })
       const layerPours = copperPours.filter(
@@ -305,7 +309,7 @@ const getTraceCopperPourContexts = (
 
       contexts.push({
         sourceNetId,
-        sourceNet: sourceNetsById.get(sourceNetId),
+        sourceNet,
         traceLayer,
         pcbTraces: layerTraces,
         traceLayerPours,
@@ -535,37 +539,40 @@ export class ViaStitchSolver extends BaseSolver {
     const viaRadius = this.options.viaOuterDiameter / 2
     const requiredCopperRadius = viaRadius + this.options.pourEdgeClearance
     const requiredObstacleRadius = viaRadius + this.options.obstacleClearance
-    const candidateCenters = getTraceCopperCandidateCenters({
-      pcbTraces: context.pcbTraces,
-      layer: context.traceLayer,
-      pitch: this.options.viaPitch,
-    })
-
-    for (const center of candidateCenters) {
-      const containingTrace = context.pcbTraces.find((pcbTrace) =>
-        isViaAnnulusInsideTraceOrShapeUnion({
-          center,
-          radius: requiredCopperRadius,
-          pcbTrace,
-          layer: context.traceLayer,
-          shapes: traceLayerShapes,
-        }),
+    for (const pcbTrace of context.pcbTraces) {
+      const entryCenter = getTraceCopperCandidateCenters({
+        pcbTraces: [pcbTrace],
+        layer: context.traceLayer,
+        pitch: this.options.viaPitch,
+      }).find(
+        (center) =>
+          isPointInShapeUnion(center, traceLayerShapes) &&
+          isViaAnnulusInsideTraceOrShapeUnion({
+            center,
+            radius: requiredCopperRadius,
+            pcbTrace,
+            layer: context.traceLayer,
+            shapes: traceLayerShapes,
+          }) &&
+          isViaAnnulusInsideShapeUnion({
+            center,
+            radius: requiredCopperRadius,
+            shapes: pourShapes,
+          }),
       )
+      if (!entryCenter) continue
+
+      // One via is enough to connect a trace as it enters the paired polygon
+      // pours. Do not continue sampling vias down the routed trace corridor.
       if (
-        !containingTrace ||
-        !isViaAnnulusInsideShapeUnion({
-          center,
-          radius: requiredCopperRadius,
-          shapes: pourShapes,
-        }) ||
         isTooCloseToOccupiedVia({
-          center,
+          center: entryCenter,
           radius: viaRadius,
           occupiedVias: this.occupiedVias,
           minimumViaSeparation: this.options.minimumViaSeparation,
         }) ||
         doesViaIntersectStitchingObstacle({
-          center,
+          center: entryCenter,
           radius: requiredObstacleRadius,
           obstacles: this.stitchingObstacles,
         })
@@ -574,7 +581,7 @@ export class ViaStitchSolver extends BaseSolver {
       }
 
       this.addVia({
-        center,
+        center: entryCenter,
         sourceNetId: context.sourceNetId,
         sourceNet: context.sourceNet,
         referencePour: context.copperPours[0]!,

@@ -37,6 +37,18 @@ const getDistanceToSegment = (
   )
 }
 
+const isOnGrid = (
+  point: { x: number; y: number },
+  origin: { x: number; y: number },
+  pitch: number,
+) =>
+  Math.abs(
+    (point.x - origin.x) / pitch - Math.round((point.x - origin.x) / pitch),
+  ) < 1e-8 &&
+  Math.abs(
+    (point.y - origin.y) / pitch - Math.round((point.y - origin.y) / pitch),
+  ) < 1e-8
+
 test("stitches GND pours around entering signal and ground traces", async () => {
   const circuit = new Circuit()
   circuit.add(<GroundPourTraceEntryStitchingCircuit />)
@@ -57,12 +69,16 @@ test("stitches GND pours around entering signal and ground traces", async () => 
   const pcbTraces = circuitJson.filter(
     (element): element is PcbTrace => element.type === "pcb_trace",
   )
-  const groundEntrySourceTrace = [...sourceTracesById.values()].find(
-    (sourceTrace) => sourceTrace.name === "GND_C2_ENTRY",
+  const groundEntrySourceTraceIds = new Set(
+    [...sourceTracesById.values()]
+      .filter((sourceTrace) => sourceTrace.name?.startsWith("GND_C"))
+      .map((sourceTrace) => sourceTrace.source_trace_id),
   )
-  const groundEntryTrace = pcbTraces.find(
+  const groundEntryTraces = pcbTraces.filter(
     (pcbTrace) =>
-      pcbTrace.source_trace_id === groundEntrySourceTrace?.source_trace_id,
+      pcbTrace.source_trace_id !== undefined &&
+      groundEntrySourceTraceIds.has(pcbTrace.source_trace_id) &&
+      pcbTrace.route.every((routePoint) => routePoint.route_type === "wire"),
   )
   const foreignTraces = pcbTraces.filter((pcbTrace) => {
     const sourceTrace = pcbTrace.source_trace_id
@@ -80,11 +96,13 @@ test("stitches GND pours around entering signal and ground traces", async () => 
   )
 
   expect(groundNet).toBeDefined()
-  expect(groundEntryTrace).toBeDefined()
+  expect(groundEntryTraces).toHaveLength(2)
   expect(
-    groundEntryTrace!.route.every(
-      (routePoint) =>
-        routePoint.route_type !== "wire" || routePoint.width === 0.3,
+    groundEntryTraces.every((pcbTrace) =>
+      pcbTrace.route.every(
+        (routePoint) =>
+          routePoint.route_type !== "wire" || routePoint.width === 0.3,
+      ),
     ),
   ).toBe(true)
   expect(new Set(groundPours.map((copperPour) => copperPour.layer))).toEqual(
@@ -155,20 +173,27 @@ test("stitches GND pours around entering signal and ground traces", async () => 
     ),
   ).toBe(true)
 
+  const entryVias = output.pcbVias.filter(
+    (pcbVia) => !isOnGrid(pcbVia, { x: 0.8, y: 0 }, 2.4),
+  )
+  expect(entryVias).toHaveLength(groundEntryTraces.length)
   expect(
-    output.pcbVias.some(
-      (pcbVia) =>
-        isViaAnnulusInsideTraceCopper({
-          center: pcbVia,
-          radius: 0.4,
-          pcbTrace: groundEntryTrace!,
-          layer: "top",
-        }) === false &&
-        groundEntryTrace!.route.some(
-          (routePoint) =>
-            routePoint.route_type === "wire" &&
-            Math.hypot(pcbVia.x - routePoint.x, pcbVia.y - routePoint.y) < 0.1,
-        ),
+    entryVias.every((pcbVia) =>
+      groundEntryTraces.some(
+        (pcbTrace) =>
+          isViaAnnulusInsideTraceCopper({
+            center: pcbVia,
+            radius: 0.4,
+            pcbTrace,
+            layer: "top",
+          }) === false &&
+          pcbTrace.route.some(
+            (routePoint) =>
+              routePoint.route_type === "wire" &&
+              Math.hypot(pcbVia.x - routePoint.x, pcbVia.y - routePoint.y) <
+                0.1,
+          ),
+      ),
     ),
   ).toBe(true)
 
