@@ -76,6 +76,8 @@ pads outside the pour, receive a regular local stitch grid plus at most one
 entry via per eligible trace, and never add a via row along the trace corridor.
 
 The combined example in `examples/dual-net-pour-entry-stitching.tsx` places a
-local VCC pour pair and a separate local GND pour pair on the same board. The
-autorouter takes one thick trace of each net into its matching pour, and the
-solver emits independently net-labeled stitch grids and entry vias for both.
+compact concave VCC polygon pair and a separate compact concave GND polygon
+pair on the same board. Each polygon follows two target pads and adds only a
+short arm around its incoming trace. The autorouter takes one thick trace of
+each net into its matching pour, and the solver emits independently net-labeled
+stitch grids and entry vias for both.
