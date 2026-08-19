@@ -51,19 +51,7 @@ export const PowerPolygonEntryStitchingCircuit = () => (
       connections={{ pin1: "U1.pin2", pin2: "net.GND" }}
     />
 
-    <trace
-      name="VCC_ENTRY"
-      from=".J1 > .pin1"
-      to="net.VCC"
-      thickness="0.5mm"
-      pcbPathRelativeTo=".J1 > .pin1"
-      pcbPath={[
-        { x: 4, y: 0 },
-        { x: 8, y: 2 },
-        { x: 12, y: 2 },
-        { x: 16, y: 1 },
-      ]}
-    />
+    <trace name="VCC_ENTRY" from=".J1 > .pin1" to="net.VCC" thickness="0.5mm" />
 
     <copperpour
       connectsTo="net.VCC"

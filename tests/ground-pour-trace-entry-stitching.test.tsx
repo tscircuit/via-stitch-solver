@@ -3,12 +3,17 @@ import { expect, test } from "bun:test"
 import type {
   PcbCopperPourBRep,
   PcbTrace,
+  PcbTraceRoutePointWire,
   SourceNet,
   SourceTrace,
 } from "circuit-json"
 import { convertCircuitJsonToPcbSvg } from "circuit-to-svg"
 import { GroundPourTraceEntryStitchingCircuit } from "examples/ground-pour-trace-entry-stitching"
-import { isViaAnnulusInsideShapeUnion } from "lib/geometry/brep-point-containment"
+import {
+  getShapeUnionBounds,
+  isPointInShapeUnion,
+  isViaAnnulusInsideShapeUnion,
+} from "lib/geometry/brep-point-containment"
 import { isViaAnnulusInsideTraceCopper } from "lib/geometry/trace-copper"
 import { ViaStitchSolver } from "lib/index"
 
@@ -69,17 +74,18 @@ test("stitches GND pours around entering signal and ground traces", async () => 
   const pcbTraces = circuitJson.filter(
     (element): element is PcbTrace => element.type === "pcb_trace",
   )
-  const groundEntrySourceTraceIds = new Set(
-    [...sourceTracesById.values()]
-      .filter((sourceTrace) => sourceTrace.name?.startsWith("GND_C"))
-      .map((sourceTrace) => sourceTrace.source_trace_id),
-  )
-  const groundEntryTraces = pcbTraces.filter(
-    (pcbTrace) =>
-      pcbTrace.source_trace_id !== undefined &&
-      groundEntrySourceTraceIds.has(pcbTrace.source_trace_id) &&
-      pcbTrace.route.every((routePoint) => routePoint.route_type === "wire"),
-  )
+  const groundTraces = pcbTraces.filter((pcbTrace) => {
+    const sourceTrace = pcbTrace.source_trace_id
+      ? sourceTracesById.get(pcbTrace.source_trace_id)
+      : undefined
+    return (
+      sourceTrace?.connected_source_net_ids.includes(
+        groundNet!.source_net_id,
+      ) ||
+      (pcbTrace as PcbTrace & { connection_name?: string }).connection_name ===
+        groundNet!.source_net_id
+    )
+  })
   const foreignTraces = pcbTraces.filter((pcbTrace) => {
     const sourceTrace = pcbTrace.source_trace_id
       ? sourceTracesById.get(pcbTrace.source_trace_id)
@@ -96,7 +102,33 @@ test("stitches GND pours around entering signal and ground traces", async () => 
   )
 
   expect(groundNet).toBeDefined()
-  expect(groundEntryTraces).toHaveLength(2)
+
+  const topGroundShapes = groundPours
+    .filter((copperPour) => copperPour.layer === "top")
+    .map((copperPour) => copperPour.brep_shape)
+  const bottomGroundShapes = groundPours
+    .filter((copperPour) => copperPour.layer === "bottom")
+    .map((copperPour) => copperPour.brep_shape)
+  const topGroundBounds = getShapeUnionBounds(topGroundShapes)!
+  const groundEntryTraces = groundTraces.filter((pcbTrace) => {
+    const topWirePoints = pcbTrace.route.filter(
+      (routePoint): routePoint is PcbTraceRoutePointWire =>
+        routePoint.route_type === "wire" && routePoint.layer === "top",
+    )
+    return (
+      topWirePoints.some((routePoint) =>
+        isPointInShapeUnion(routePoint, topGroundShapes),
+      ) &&
+      topWirePoints.some(
+        (routePoint) =>
+          routePoint.x < topGroundBounds.minX ||
+          routePoint.x > topGroundBounds.maxX ||
+          routePoint.y < topGroundBounds.minY ||
+          routePoint.y > topGroundBounds.maxY,
+      )
+    )
+  })
+  expect(groundEntryTraces).toHaveLength(1)
   expect(
     groundEntryTraces.every((pcbTrace) =>
       pcbTrace.route.every(
@@ -133,12 +165,6 @@ test("stitches GND pours around entering signal and ground traces", async () => 
     ),
   ).toBe(true)
 
-  const topGroundShapes = groundPours
-    .filter((copperPour) => copperPour.layer === "top")
-    .map((copperPour) => copperPour.brep_shape)
-  const bottomGroundShapes = groundPours
-    .filter((copperPour) => copperPour.layer === "bottom")
-    .map((copperPour) => copperPour.brep_shape)
   expect(
     output.pcbVias.every(
       (pcbVia) =>
@@ -187,12 +213,16 @@ test("stitches GND pours around entering signal and ground traces", async () => 
             pcbTrace,
             layer: "top",
           }) === false &&
-          pcbTrace.route.some(
-            (routePoint) =>
-              routePoint.route_type === "wire" &&
-              Math.hypot(pcbVia.x - routePoint.x, pcbVia.y - routePoint.y) <
-                0.1,
-          ),
+          pcbTrace.route
+            .filter((routePoint) => routePoint.route_type === "wire")
+            .some((start, pointIndex, wirePoints) => {
+              const end = wirePoints[pointIndex + 1]
+              return (
+                end !== undefined &&
+                start.layer === end.layer &&
+                getDistanceToSegment(pcbVia, start, end) < 0.01
+              )
+            }),
       ),
     ),
   ).toBe(true)

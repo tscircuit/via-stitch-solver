@@ -55,59 +55,29 @@ export const GroundPourTraceEntryStitchingCircuit = () => (
       from=".U1 > .pin5"
       to=".U2 > .pin1"
       thickness="0.25mm"
-      pcbPathRelativeTo=".U1 > .pin5"
-      pcbPath={[
-        { x: 4, y: 0 },
-        { x: 7, y: 3 },
-        { x: 14, y: 3 },
-      ]}
     />
     <trace
       name="SIGNAL_B"
       from=".U1 > .pin6"
       to=".U2 > .pin2"
       thickness="0.25mm"
-      pcbPathRelativeTo=".U1 > .pin6"
-      pcbPath={[
-        { x: 4, y: 0 },
-        { x: 7, y: -3 },
-        { x: 14, y: -3 },
-      ]}
     />
     <trace
       name="VCC_MAIN"
       path={[".U1 > .pin1", "net.VCC", ".U2 > .pin3"]}
       thickness="0.6mm"
-      pcbPathRelativeTo=".U1 > .pin1"
-      pcbPath={[
-        { x: 4, y: 0 },
-        { x: 8, y: 5 },
-        { x: 15, y: 5 },
-      ]}
     />
     <trace
       name="GND_C1_ENTRY"
       from=".C1 > .pin2"
       to="net.GND"
       thickness="0.3mm"
-      pcbPathRelativeTo=".C1 > .pin2"
-      pcbPath={[
-        { x: 3, y: 0 },
-        { x: 6, y: 0 },
-        { x: 8, y: -1 },
-      ]}
     />
     <trace
       name="GND_C2_ENTRY"
       from=".C2 > .pin2"
       to="net.GND"
       thickness="0.3mm"
-      pcbPathRelativeTo=".C2 > .pin2"
-      pcbPath={[
-        { x: 3, y: 0 },
-        { x: 6, y: 0 },
-        { x: 8, y: 1 },
-      ]}
     />
 
     <copperpour

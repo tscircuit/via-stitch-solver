@@ -68,11 +68,13 @@ same-net pour. Traces connected to a different net are never used as stitch
 guides.
 
 The example in `examples/power-polygon-entry-stitching.tsx` uses a VCC trace
-entering fixed top/bottom VCC polygons. It receives one entry via in addition to
-the regular pour grid; there is no row of vias along the power-trace corridor.
+that the autorouter takes into fixed top/bottom VCC polygons. It receives one
+entry via in addition to the regular pour grid; there is no row of vias along
+the power-trace corridor.
 
 The example in `examples/ground-pour-trace-entry-stitching.tsx` models the
-common layout where narrow GND branches enter a fixed top/bottom GND polygon
-while signal and power routes cut clearance channels through it. The GND via
-grid stays inside the remaining overlap, and route-aligned vias are kept out of
-foreign-net trace channels and component pads.
+common layout where the autorouter joins outside GND pads and carries one GND
+connection into a fixed top/bottom GND polygon while signal and power routes
+cut clearance channels through it. The GND via grid stays inside the remaining
+overlap, and the entry via is kept out of foreign-net trace channels and
+component pads.

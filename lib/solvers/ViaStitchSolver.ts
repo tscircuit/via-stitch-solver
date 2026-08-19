@@ -539,12 +539,39 @@ export class ViaStitchSolver extends BaseSolver {
     const viaRadius = this.options.viaOuterDiameter / 2
     const requiredCopperRadius = viaRadius + this.options.pourEdgeClearance
     const requiredObstacleRadius = viaRadius + this.options.obstacleClearance
+    const traceLayerBounds = getShapeUnionBounds(traceLayerShapes)
+    if (!traceLayerBounds) return
+
+    const isOutsideTraceLayerBounds = (point: Point) =>
+      point.x < traceLayerBounds.minX ||
+      point.x > traceLayerBounds.maxX ||
+      point.y < traceLayerBounds.minY ||
+      point.y > traceLayerBounds.maxY
+
     for (const pcbTrace of context.pcbTraces) {
-      const entryCenter = getTraceCopperCandidateCenters({
+      const outsideWirePoints = pcbTrace.route.filter(
+        (routePoint): routePoint is PcbTraceRoutePointWire =>
+          routePoint.route_type === "wire" &&
+          String(routePoint.layer) === String(context.traceLayer) &&
+          isOutsideTraceLayerBounds(routePoint),
+      )
+      const distanceToClosestOutsidePoint = (center: Point) =>
+        Math.min(
+          ...outsideWirePoints.map((outsidePoint) =>
+            Math.hypot(center.x - outsidePoint.x, center.y - outsidePoint.y),
+          ),
+        )
+      const entryCandidateCenters = getTraceCopperCandidateCenters({
         pcbTraces: [pcbTrace],
         layer: context.traceLayer,
         pitch: this.options.viaPitch,
-      }).find(
+      }).sort(
+        (first, second) =>
+          distanceToClosestOutsidePoint(first) -
+          distanceToClosestOutsidePoint(second),
+      )
+
+      const entryCenter = entryCandidateCenters.find(
         (center) =>
           isPointInShapeUnion(center, traceLayerShapes) &&
           isViaAnnulusInsideTraceOrShapeUnion({
@@ -558,28 +585,23 @@ export class ViaStitchSolver extends BaseSolver {
             center,
             radius: requiredCopperRadius,
             shapes: pourShapes,
+          }) &&
+          !isTooCloseToOccupiedVia({
+            center,
+            radius: viaRadius,
+            occupiedVias: this.occupiedVias,
+            minimumViaSeparation: this.options.minimumViaSeparation,
+          }) &&
+          !doesViaIntersectStitchingObstacle({
+            center,
+            radius: requiredObstacleRadius,
+            obstacles: this.stitchingObstacles,
           }),
       )
       if (!entryCenter) continue
 
       // One via is enough to connect a trace as it enters the paired polygon
       // pours. Do not continue sampling vias down the routed trace corridor.
-      if (
-        isTooCloseToOccupiedVia({
-          center: entryCenter,
-          radius: viaRadius,
-          occupiedVias: this.occupiedVias,
-          minimumViaSeparation: this.options.minimumViaSeparation,
-        }) ||
-        doesViaIntersectStitchingObstacle({
-          center: entryCenter,
-          radius: requiredObstacleRadius,
-          obstacles: this.stitchingObstacles,
-        })
-      ) {
-        continue
-      }
-
       this.addVia({
         center: entryCenter,
         sourceNetId: context.sourceNetId,
