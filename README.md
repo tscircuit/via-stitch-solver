@@ -34,7 +34,7 @@ const solver = new ViaStitchSolver({
   circuitJson,
   options: {
     layers: ["top", "bottom"],
-    viaPitch: 2,
+    viaPitch: 1,
     viaHoleDiameter: 0.3,
     viaOuterDiameter: 0.6,
     pourEdgeClearance: 0.2,

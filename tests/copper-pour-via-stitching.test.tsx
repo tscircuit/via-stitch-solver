@@ -19,7 +19,6 @@ test("stitches the overlap of existing same-net copper pours", async () => {
     circuitJson,
     options: {
       sourceNetIds: [groundSourceNet!.source_net_id],
-      viaPitch: 2,
       pourEdgeClearance: 0.2,
     },
   })
@@ -28,7 +27,7 @@ test("stitches the overlap of existing same-net copper pours", async () => {
   const output = solver.getOutput()
 
   expect(output.processedCopperPourPairCount).toBe(1)
-  expect(output.pcbVias.length).toBeGreaterThan(10)
+  expect(output.pcbVias.length).toBeGreaterThan(100)
   expect(
     output.pcbVias.some((pcbVia) => pcbVia.x === 0 && pcbVia.y === 0),
   ).toBe(false)

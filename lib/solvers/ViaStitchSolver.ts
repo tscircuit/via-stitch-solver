@@ -43,7 +43,7 @@ const resolveOptions = (
       ? new Set(options.sourceNetIds)
       : undefined,
     layers: options.layers ?? ["top", "bottom"],
-    viaPitch: options.viaPitch ?? 2,
+    viaPitch: options.viaPitch ?? 1,
     viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
     viaOuterDiameter: options.viaOuterDiameter ?? 0.6,
     pourEdgeClearance: options.pourEdgeClearance ?? 0.2,
