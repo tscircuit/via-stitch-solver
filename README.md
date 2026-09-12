@@ -12,7 +12,10 @@ The solver does not create or reshape copper pours. It:
    clearance fit inside copper on both layers.
 4. Avoids component bounds, pads, plated holes, board holes, existing routing
    vias, explicit vias, and newly-created stitching vias.
-5. Emits `pcb_via` elements connected to the stitched net.
+5. Runs a final `drc` phase using `@tscircuit/checks` to reject generated vias
+   that violate via-to-pad, via-to-trace, same/different-net via spacing,
+   board-outline clearance, or copper keepout rules.
+6. Emits only validated `pcb_via` elements connected to the stitched net.
 
 This is the usual copper-pour stitching operation used for top and bottom GND
 planes. The pours can cover the board or use fixed convex/concave polygon
@@ -55,3 +58,15 @@ millimetres, matching the parsed board prop in core. It defaults to `1` when
 omitted. Unit strings such as `"1mm"` should be parsed by the caller before
 passing the numeric value to the solver. `viaStitchPitch` is the only supported
 pitch option.
+
+The DRC phase uses the board's configured clearances (or the checks package's
+manufacturing defaults). These rules still apply when the geometric clearance
+options are smaller. If a pair of generated vias violates spacing, both are
+rejected. The solver finishes only after validation, and `getOutput().pcbVias`
+remains empty until then.
+
+Existing input vias, traces, and errors are preserved. This solver prevents DRC
+violations from newly generated stitching vias; it does not repair pre-existing
+routing errors. See the nRF52810 regression in
+`tests/repros/repro-nrf52810-without-copper-pours` for an example that already has
+three routed-via clearance errors before stitching.
