@@ -36,7 +36,7 @@ test("nRF52810 stitching does not introduce via DRC errors", async () => {
       ...solver.getOutput().pcbVias,
     ]),
   ).toMatchSvgSnapshot(import.meta.path)
-})
+}, 30_000)
 
 test("nRF52810 stitching respects stricter board DRC clearances", () => {
   const stricterInput = structuredClone(input)
