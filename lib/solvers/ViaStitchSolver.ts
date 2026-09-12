@@ -38,12 +38,21 @@ interface OccupiedVia {
 const resolveOptions = (
   options: ViaStitchSolverOptions = {},
 ): ResolvedViaStitchSolverOptions => {
+  if (
+    options.viaStitchPitch !== undefined &&
+    options.viaPitch !== undefined &&
+    options.viaStitchPitch !== options.viaPitch
+  ) {
+    throw new Error(
+      "viaStitchPitch and viaPitch must match when both are provided",
+    )
+  }
   const resolvedOptions: ResolvedViaStitchSolverOptions = {
     sourceNetIds: options.sourceNetIds
       ? new Set(options.sourceNetIds)
       : undefined,
     layers: options.layers ?? ["top", "bottom"],
-    viaPitch: options.viaPitch ?? 1,
+    viaPitch: options.viaStitchPitch ?? options.viaPitch ?? 1,
     viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
     viaOuterDiameter: options.viaOuterDiameter ?? 0.6,
     pourEdgeClearance: options.pourEdgeClearance ?? 0.2,
@@ -56,7 +65,10 @@ const resolveOptions = (
   }
 
   for (const [optionName, optionValue] of [
-    ["viaPitch", resolvedOptions.viaPitch],
+    [
+      options.viaStitchPitch !== undefined ? "viaStitchPitch" : "viaPitch",
+      resolvedOptions.viaPitch,
+    ],
     ["viaHoleDiameter", resolvedOptions.viaHoleDiameter],
     ["viaOuterDiameter", resolvedOptions.viaOuterDiameter],
     ["minimumViaSeparation", resolvedOptions.minimumViaSeparation],

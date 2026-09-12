@@ -12,6 +12,8 @@ export interface ViaStitchSolverOptions {
   /** Layers whose same-net copper overlap should be stitched. */
   layers?: readonly [LayerRef, LayerRef]
   /** Centre-to-centre spacing of the via grid in millimetres. Defaults to 1 mm. */
+  viaStitchPitch?: number
+  /** Compatibility alias for viaStitchPitch. If both are set, they must match. */
   viaPitch?: number
   viaHoleDiameter?: number
   viaOuterDiameter?: number

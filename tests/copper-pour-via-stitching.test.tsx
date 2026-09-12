@@ -37,4 +37,23 @@ test("stitches the overlap of existing same-net copper pours", async () => {
 
   const svg = convertCircuitJsonToPcbSvg([...circuitJson, ...output.pcbVias])
   await expect(svg).toMatchSvgSnapshot(import.meta.path)
+
+  const pitchedSolver = new ViaStitchSolver({
+    circuitJson,
+    options: { viaStitchPitch: 2 },
+  })
+  pitchedSolver.solve()
+  const pitchedVias = pitchedSolver.getOutput().pcbVias
+  expect(pitchedVias.length).toBeGreaterThan(0)
+  expect(pitchedVias.length).toBeLessThan(output.pcbVias.length)
+  for (const via of pitchedVias) {
+    expect(via.x / 2).toBeCloseTo(Math.round(via.x / 2))
+    expect(via.y / 2).toBeCloseTo(Math.round(via.y / 2))
+  }
+  const legacySolver = new ViaStitchSolver({
+    circuitJson,
+    options: { viaPitch: 2 },
+  })
+  legacySolver.solve()
+  expect(pitchedVias).toEqual(legacySolver.getOutput().pcbVias)
 })
