@@ -1,14 +1,23 @@
 import { expect, test } from "bun:test"
 import { ViaStitchSolver } from "lib/index"
 
+test("rejects invalid viaStitchPitch values", () => {
+  for (const viaStitchPitch of [0, -1, NaN, Infinity, -Infinity]) {
+    expect(
+      () =>
+        new ViaStitchSolver({ circuitJson: [], options: { viaStitchPitch } }),
+    ).toThrow("viaStitchPitch")
+  }
+})
+
 test("rejects dimensions that cannot produce valid stitching geometry", () => {
   expect(
     () =>
       new ViaStitchSolver({
         circuitJson: [],
-        options: { viaPitch: 0 },
+        options: { viaStitchPitch: 0 },
       }),
-  ).toThrow("viaPitch")
+  ).toThrow("viaStitchPitch")
 
   expect(
     () =>

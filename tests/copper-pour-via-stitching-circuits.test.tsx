@@ -71,7 +71,7 @@ for (const example of examples) {
     const solver = new ViaStitchSolver({
       circuitJson,
       options: {
-        viaPitch: 2,
+        viaStitchPitch: 2,
         viaHoleDiameter: 0.3,
         viaOuterDiameter: 0.6,
         pourEdgeClearance: 0.2,

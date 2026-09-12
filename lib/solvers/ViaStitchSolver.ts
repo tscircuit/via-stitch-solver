@@ -43,7 +43,7 @@ const resolveOptions = (
       ? new Set(options.sourceNetIds)
       : undefined,
     layers: options.layers ?? ["top", "bottom"],
-    viaPitch: options.viaPitch ?? 1,
+    viaStitchPitch: options.viaStitchPitch ?? 1,
     viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
     viaOuterDiameter: options.viaOuterDiameter ?? 0.6,
     pourEdgeClearance: options.pourEdgeClearance ?? 0.2,
@@ -56,7 +56,7 @@ const resolveOptions = (
   }
 
   for (const [optionName, optionValue] of [
-    ["viaPitch", resolvedOptions.viaPitch],
+    ["viaStitchPitch", resolvedOptions.viaStitchPitch],
     ["viaHoleDiameter", resolvedOptions.viaHoleDiameter],
     ["viaOuterDiameter", resolvedOptions.viaOuterDiameter],
     ["minimumViaSeparation", resolvedOptions.minimumViaSeparation],
@@ -290,13 +290,13 @@ export class ViaStitchSolver extends BaseSolver {
       minimum: overlapBounds.minX + requiredCopperRadius,
       maximum: overlapBounds.maxX - requiredCopperRadius,
       origin: this.options.gridOrigin.x,
-      pitch: this.options.viaPitch,
+      pitch: this.options.viaStitchPitch,
     })
     const yCoordinates = getGridCoordinates({
       minimum: overlapBounds.minY + requiredCopperRadius,
       maximum: overlapBounds.maxY - requiredCopperRadius,
       origin: this.options.gridOrigin.y,
-      pitch: this.options.viaPitch,
+      pitch: this.options.viaStitchPitch,
     })
 
     for (const y of yCoordinates) {

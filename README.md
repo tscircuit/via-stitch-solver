@@ -34,7 +34,7 @@ const solver = new ViaStitchSolver({
   circuitJson,
   options: {
     layers: ["top", "bottom"],
-    viaPitch: 1,
+    viaStitchPitch: 1,
     viaHoleDiameter: 0.3,
     viaOuterDiameter: 0.6,
     pourEdgeClearance: 0.2,
@@ -49,3 +49,9 @@ const stitchedCircuitJson = [...circuitJson, ...pcbVias]
 
 By default the grid is aligned to board-world `(0, 0)`. Set `gridOrigin` when a
 different grid alignment is needed. Generated vias are tented by default.
+
+`viaStitchPitch` is the positive, finite centre-to-centre grid spacing in
+millimetres, matching the parsed board prop in core. It defaults to `1` when
+omitted. Unit strings such as `"1mm"` should be parsed by the caller before
+passing the numeric value to the solver. `viaStitchPitch` is the only supported
+pitch option.

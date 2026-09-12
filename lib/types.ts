@@ -12,7 +12,7 @@ export interface ViaStitchSolverOptions {
   /** Layers whose same-net copper overlap should be stitched. */
   layers?: readonly [LayerRef, LayerRef]
   /** Centre-to-centre spacing of the via grid in millimetres. Defaults to 1 mm. */
-  viaPitch?: number
+  viaStitchPitch?: number
   viaHoleDiameter?: number
   viaOuterDiameter?: number
   /** Copper required beyond the via annulus on both stitched layers. */
@@ -44,7 +44,7 @@ export interface ViaStitchSolverOutput {
 export interface ResolvedViaStitchSolverOptions {
   sourceNetIds?: Set<SourceNet["source_net_id"]>
   layers: readonly [LayerRef, LayerRef]
-  viaPitch: number
+  viaStitchPitch: number
   viaHoleDiameter: number
   viaOuterDiameter: number
   pourEdgeClearance: number
