@@ -70,3 +70,35 @@ violations from newly generated stitching vias; it does not repair pre-existing
 routing errors. See the nRF52810 regression in
 `tests/repros/repro-nrf52810-without-copper-pours` for an example that already has
 three routed-via clearance errors before stitching.
+
+## Step-by-step visual debugger
+
+Run `bun install` and `bun start`, then open the Cosmos URL printed in the
+terminal. This uses React Cosmos and `GenericSolverDebugger`, matching
+`implicit-copper-pour-solver`.
+
+Choose a fixture from the sidebar:
+
+- **solver**: small board showing trace-clearance and keepout rejections.
+- **nrf52810**: the original captured regression board.
+- **nrf52810-strict-drc**: the same board with 0.5 mm board clearances, showing
+  the candidate removed by DRC.
+
+**Step** advances one grid point once candidate generation starts. The pipeline
+stage table exposes **Next Stage**, stage progress, timings, and counts. Use
+**Animate** or **Solve** to advance faster, **Reset example** to replay, and the
+input/visualization download menus to save a reproduction. Enable object
+interaction to see hover labels and use the layer dropdown for top (`z0`) and
+bottom (`z1`). Copper boundaries include the inner rings so voids stay visible.
+
+Amber circles are candidates, a cyan ring marks the current grid point, green
+circles passed DRC, and red crosses mark rejected candidates. Red crosses are
+visual diagnostics only and are never included in `getOutput().pcbVias`.
+
+The public solver exposes the standard `BasePipelineSolver` interface, including
+`visualize()`, `getConstructorParams()`, and `solveUntilStage("drc")`. Constructor
+validation and final output geometry are unchanged. Candidate generation now
+advances incrementally, so iteration counts differ from older releases.
+
+Build the static Cosmos site with `bun run build:site`; the existing Vercel
+configuration publishes `cosmos-export`.

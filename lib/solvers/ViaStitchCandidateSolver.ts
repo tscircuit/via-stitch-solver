@@ -1,0 +1,411 @@
+import { BaseSolver } from "@tscircuit/solver-utils"
+import type {
+  BRepShape,
+  PcbCopperPourBRep,
+  PcbTrace,
+  PcbVia,
+  Point,
+  SourceNet,
+} from "circuit-json"
+import {
+  getShapeUnionBounds,
+  isViaAnnulusInsideShapeUnion,
+} from "../geometry/brep-point-containment"
+import {
+  doesViaIntersectStitchingObstacle,
+  getStitchingObstacles,
+} from "../geometry/circuit-element-obstacles"
+import type {
+  ResolvedViaStitchSolverOptions,
+  ViaStitchPcbVia,
+  ViaStitchSolverInput,
+  ViaStitchSolverOptions,
+  ViaStitchSolverOutput,
+} from "../types"
+
+import { visualizeViaStitching, type CandidateDecision } from "../visualize"
+
+interface CopperPourPairContext {
+  sourceNetId: SourceNet["source_net_id"]
+  sourceNet?: SourceNet
+  fromLayerPours: PcbCopperPourBRep[]
+  toLayerPours: PcbCopperPourBRep[]
+}
+
+interface OccupiedVia {
+  center: Point
+  radius: number
+}
+
+export const resolveOptions = (
+  options: ViaStitchSolverOptions = {},
+): ResolvedViaStitchSolverOptions => {
+  const resolvedOptions: ResolvedViaStitchSolverOptions = {
+    sourceNetIds: options.sourceNetIds
+      ? new Set(options.sourceNetIds)
+      : undefined,
+    layers: options.layers ?? ["top", "bottom"],
+    viaStitchPitch: options.viaStitchPitch ?? 1,
+    viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
+    viaOuterDiameter: options.viaOuterDiameter ?? 0.6,
+    pourEdgeClearance: options.pourEdgeClearance ?? 0.2,
+    obstacleClearance: options.obstacleClearance ?? 0.2,
+    minimumViaSeparation:
+      options.minimumViaSeparation ??
+      Math.max(options.viaOuterDiameter ?? 0.6, 0.8),
+    gridOrigin: options.gridOrigin ?? { x: 0, y: 0 },
+    isTented: options.isTented ?? true,
+  }
+
+  for (const [optionName, optionValue] of [
+    ["viaStitchPitch", resolvedOptions.viaStitchPitch],
+    ["viaHoleDiameter", resolvedOptions.viaHoleDiameter],
+    ["viaOuterDiameter", resolvedOptions.viaOuterDiameter],
+    ["minimumViaSeparation", resolvedOptions.minimumViaSeparation],
+  ] as const) {
+    if (!Number.isFinite(optionValue) || optionValue <= 0) {
+      throw new Error(`${optionName} must be a finite number greater than zero`)
+    }
+  }
+  if (
+    !Number.isFinite(resolvedOptions.pourEdgeClearance) ||
+    resolvedOptions.pourEdgeClearance < 0
+  ) {
+    throw new Error("pourEdgeClearance must be a finite non-negative number")
+  }
+  if (
+    !Number.isFinite(resolvedOptions.obstacleClearance) ||
+    resolvedOptions.obstacleClearance < 0
+  ) {
+    throw new Error("obstacleClearance must be a finite non-negative number")
+  }
+  if (
+    !Number.isFinite(resolvedOptions.gridOrigin.x) ||
+    !Number.isFinite(resolvedOptions.gridOrigin.y)
+  ) {
+    throw new Error("gridOrigin coordinates must be finite numbers")
+  }
+  if (resolvedOptions.viaHoleDiameter >= resolvedOptions.viaOuterDiameter) {
+    throw new Error("viaHoleDiameter must be smaller than viaOuterDiameter")
+  }
+  if (String(resolvedOptions.layers[0]) === String(resolvedOptions.layers[1])) {
+    throw new Error("layers must contain two distinct PCB layers")
+  }
+
+  return resolvedOptions
+}
+
+const isBrepCopperPour = (
+  element: ViaStitchSolverInput["circuitJson"][number],
+): element is PcbCopperPourBRep =>
+  element.type === "pcb_copper_pour" && element.shape === "brep"
+
+const getCopperPourPairContexts = (
+  input: ViaStitchSolverInput,
+  options: ResolvedViaStitchSolverOptions,
+): CopperPourPairContext[] => {
+  const sourceNetsById = new Map(
+    input.circuitJson
+      .filter((element): element is SourceNet => element.type === "source_net")
+      .map((sourceNet) => [sourceNet.source_net_id, sourceNet]),
+  )
+  const poursBySourceNetId = new Map<
+    SourceNet["source_net_id"],
+    PcbCopperPourBRep[]
+  >()
+
+  for (const element of input.circuitJson) {
+    if (!isBrepCopperPour(element) || !element.source_net_id) continue
+    if (
+      options.sourceNetIds &&
+      !options.sourceNetIds.has(element.source_net_id)
+    ) {
+      continue
+    }
+    const sourceNetPours = poursBySourceNetId.get(element.source_net_id) ?? []
+    sourceNetPours.push(element)
+    poursBySourceNetId.set(element.source_net_id, sourceNetPours)
+  }
+
+  const [fromLayer, toLayer] = options.layers
+  const contexts: CopperPourPairContext[] = []
+  for (const [sourceNetId, sourceNetPours] of poursBySourceNetId) {
+    const fromLayerPours = sourceNetPours.filter(
+      (copperPour) => String(copperPour.layer) === String(fromLayer),
+    )
+    const toLayerPours = sourceNetPours.filter(
+      (copperPour) => String(copperPour.layer) === String(toLayer),
+    )
+    if (fromLayerPours.length === 0 || toLayerPours.length === 0) continue
+    contexts.push({
+      sourceNetId,
+      sourceNet: sourceNetsById.get(sourceNetId),
+      fromLayerPours,
+      toLayerPours,
+    })
+  }
+
+  return contexts
+}
+
+const getPcbTraceViaRadius = (
+  routePoint: Extract<PcbTrace["route"][number], { route_type: "via" }>,
+  fallbackRadius: number,
+) => {
+  const routePointWithDiameter = routePoint as typeof routePoint & {
+    outer_diameter?: number
+  }
+  return (routePointWithDiameter.outer_diameter ?? fallbackRadius * 2) / 2
+}
+
+const isTooCloseToOccupiedVia = ({
+  center,
+  radius,
+  occupiedVias,
+  minimumViaSeparation,
+}: {
+  center: Point
+  radius: number
+  occupiedVias: OccupiedVia[]
+  minimumViaSeparation: number
+}) =>
+  occupiedVias.some(
+    (occupiedVia) =>
+      Math.hypot(
+        center.x - occupiedVia.center.x,
+        center.y - occupiedVia.center.y,
+      ) < Math.max(minimumViaSeparation, radius + occupiedVia.radius),
+  )
+
+const getGridCoordinates = ({
+  minimum,
+  maximum,
+  origin,
+  pitch,
+}: {
+  minimum: number
+  maximum: number
+  origin: number
+  pitch: number
+}) => {
+  const coordinates: number[] = []
+  const firstGridIndex = Math.ceil((minimum - origin) / pitch)
+  const lastGridIndex = Math.floor((maximum - origin) / pitch)
+  for (
+    let gridIndex = firstGridIndex;
+    gridIndex <= lastGridIndex;
+    gridIndex++
+  ) {
+    coordinates.push(origin + gridIndex * pitch)
+  }
+  return coordinates
+}
+
+export class ViaStitchCandidateSolver extends BaseSolver {
+  private readonly options: ResolvedViaStitchSolverOptions
+  private readonly copperPourPairContexts: CopperPourPairContext[]
+  private readonly candidateVias: ViaStitchPcbVia[] = []
+  private candidateSteps?: Generator<void>
+  private currentCandidate?: CandidateDecision
+  private testedCandidates = 0
+  private readonly occupiedVias: OccupiedVia[] = []
+  private readonly existingPcbViaIds = new Set<string>()
+  private readonly stitchingObstacles
+  private nextCopperPourPairIndex = 0
+  private nextViaId = 0
+
+  constructor(private readonly input: ViaStitchSolverInput) {
+    super()
+    this.MAX_ITERATIONS = 1e6
+    this.options = resolveOptions(input.options)
+    this.copperPourPairContexts = getCopperPourPairContexts(input, this.options)
+    this.stitchingObstacles = getStitchingObstacles(
+      input.circuitJson,
+      this.options.layers,
+    )
+    const fallbackViaRadius = this.options.viaOuterDiameter / 2
+
+    for (const element of input.circuitJson) {
+      if (element.type === "pcb_via") {
+        const pcbVia = element as PcbVia
+        this.existingPcbViaIds.add(pcbVia.pcb_via_id)
+        this.occupiedVias.push({
+          center: { x: pcbVia.x, y: pcbVia.y },
+          radius: pcbVia.outer_diameter / 2,
+        })
+      } else if (element.type === "pcb_trace") {
+        for (const routePoint of (element as PcbTrace).route) {
+          if (routePoint.route_type !== "via") continue
+          this.occupiedVias.push({
+            center: { x: routePoint.x, y: routePoint.y },
+            radius: getPcbTraceViaRadius(routePoint, fallbackViaRadius),
+          })
+        }
+      }
+    }
+  }
+
+  override _step(): void {
+    this.candidateSteps ??= this.iterateCandidates()
+    if (this.candidateSteps.next().done) {
+      this.solved = true
+      this.progress = 1
+    }
+    this.stats = {
+      tested: this.testedCandidates,
+      candidates: this.candidateVias.length,
+      skipped: this.testedCandidates - this.candidateVias.length,
+      decision: this.currentCandidate?.reason ?? "Ready",
+    }
+  }
+
+  private *iterateCandidates(): Generator<void> {
+    for (const context of this.copperPourPairContexts) {
+      yield* this.processCopperPourPair(context)
+      this.nextCopperPourPairIndex += 1
+    }
+  }
+
+  override getConstructorParams(): [ViaStitchSolverInput] {
+    return [this.input]
+  }
+
+  override visualize() {
+    return visualizeViaStitching(this.input.circuitJson, {
+      title: "Candidate generation",
+      candidates: this.candidateVias,
+      currentCandidate: this.currentCandidate,
+    })
+  }
+
+  private *processCopperPourPair(
+    context: CopperPourPairContext,
+  ): Generator<void> {
+    const [fromLayer, toLayer] = this.options.layers
+    const fromLayerShapes = context.fromLayerPours.map(
+      (copperPour) => copperPour.brep_shape,
+    )
+    const toLayerShapes = context.toLayerPours.map(
+      (copperPour) => copperPour.brep_shape,
+    )
+    const fromBounds = getShapeUnionBounds(fromLayerShapes)
+    const toBounds = getShapeUnionBounds(toLayerShapes)
+    if (!fromBounds || !toBounds) return
+
+    const overlapBounds = {
+      minX: Math.max(fromBounds.minX, toBounds.minX),
+      maxX: Math.min(fromBounds.maxX, toBounds.maxX),
+      minY: Math.max(fromBounds.minY, toBounds.minY),
+      maxY: Math.min(fromBounds.maxY, toBounds.maxY),
+    }
+    if (
+      overlapBounds.minX > overlapBounds.maxX ||
+      overlapBounds.minY > overlapBounds.maxY
+    ) {
+      return
+    }
+
+    const viaRadius = this.options.viaOuterDiameter / 2
+    const requiredCopperRadius = viaRadius + this.options.pourEdgeClearance
+    const requiredObstacleRadius = viaRadius + this.options.obstacleClearance
+    const xCoordinates = getGridCoordinates({
+      minimum: overlapBounds.minX + requiredCopperRadius,
+      maximum: overlapBounds.maxX - requiredCopperRadius,
+      origin: this.options.gridOrigin.x,
+      pitch: this.options.viaStitchPitch,
+    })
+    const yCoordinates = getGridCoordinates({
+      minimum: overlapBounds.minY + requiredCopperRadius,
+      maximum: overlapBounds.maxY - requiredCopperRadius,
+      origin: this.options.gridOrigin.y,
+      pitch: this.options.viaStitchPitch,
+    })
+
+    let gridPointIndex = 0
+    for (const y of yCoordinates) {
+      for (const x of xCoordinates) {
+        const center = { x, y }
+        this.testedCandidates += 1
+        this.progress =
+          (this.nextCopperPourPairIndex +
+            ++gridPointIndex / (xCoordinates.length * yCoordinates.length)) /
+          this.copperPourPairContexts.length
+        let reason: CandidateDecision["reason"] = "Candidate accepted"
+        if (
+          isTooCloseToOccupiedVia({
+            center,
+            radius: viaRadius,
+            occupiedVias: this.occupiedVias,
+            minimumViaSeparation: this.options.minimumViaSeparation,
+          })
+        ) {
+          reason = "Too close to another via"
+        } else if (
+          doesViaIntersectStitchingObstacle({
+            center,
+            radius: requiredObstacleRadius,
+            obstacles: this.stitchingObstacles,
+          })
+        ) {
+          reason = "Obstacle clearance"
+        } else if (
+          !isViaAnnulusInsideShapeUnion({
+            center,
+            radius: requiredCopperRadius,
+            shapes: fromLayerShapes,
+          }) ||
+          !isViaAnnulusInsideShapeUnion({
+            center,
+            radius: requiredCopperRadius,
+            shapes: toLayerShapes,
+          })
+        ) {
+          reason = "Outside shared copper"
+        }
+        this.currentCandidate = {
+          center,
+          radius: requiredCopperRadius,
+          reason,
+        }
+        if (reason !== "Candidate accepted") {
+          yield
+          continue
+        }
+
+        let pcbViaId = `via_stitch_via_${this.nextViaId++}`
+        while (this.existingPcbViaIds.has(pcbViaId)) {
+          pcbViaId = `via_stitch_via_${this.nextViaId++}`
+        }
+        const referencePour = context.fromLayerPours[0]!
+        const pcbVia = {
+          type: "pcb_via",
+          pcb_via_id: pcbViaId,
+          x,
+          y,
+          hole_diameter: this.options.viaHoleDiameter,
+          outer_diameter: this.options.viaOuterDiameter,
+          layers: [fromLayer, toLayer],
+          from_layer: fromLayer,
+          to_layer: toLayer,
+          source_net_id: context.sourceNetId,
+          subcircuit_id: referencePour.subcircuit_id,
+          pcb_group_id: referencePour.pcb_group_id,
+          subcircuit_connectivity_map_key:
+            context.sourceNet?.subcircuit_connectivity_map_key,
+          is_tented: this.options.isTented,
+        } as ViaStitchPcbVia
+        this.candidateVias.push(pcbVia)
+        this.existingPcbViaIds.add(pcbViaId)
+        this.occupiedVias.push({ center, radius: viaRadius })
+        yield
+      }
+    }
+  }
+
+  override getOutput(): ViaStitchSolverOutput {
+    return {
+      processedCopperPourPairCount: this.copperPourPairContexts.length,
+      pcbVias: this.candidateVias,
+    }
+  }
+}

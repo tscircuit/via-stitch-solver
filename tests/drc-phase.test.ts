@@ -11,12 +11,12 @@ import { runViaClearanceChecks } from "./fixtures/run-via-checks"
 
 test("does not publish unvalidated candidates or finish before the DRC phase", () => {
   const solver = new ViaStitchSolver(createDrcInput())
-  solver.step()
+  solver.solveUntilStage("drc")
   expect(solver.phase).toBe("drc")
   expect(solver.solved).toBe(false)
   expect(solver.progress).toBeLessThan(1)
   expect(solver.getOutput().pcbVias).toEqual([])
-  solver.step()
+  solver.solve()
   expect(solver.phase).toBe("complete")
   expect(solver.solved).toBe(true)
   expect(solver.progress).toBe(1)

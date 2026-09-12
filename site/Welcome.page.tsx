@@ -17,6 +17,14 @@ export default function WelcomePage() {
         Place a clearance-aware via grid wherever existing same-net copper pours
         overlap on two PCB layers.
       </p>
+      <h2>Step through the solver</h2>
+      <p>
+        Choose <strong>solver</strong> in the sidebar for a small demonstration,
+        or open <strong>nrf52810</strong> and{" "}
+        <strong>nrf52810-strict-drc</strong>
+        to inspect the regression board. Use Step, Animate, Next Stage, and
+        Solve to inspect candidate generation and DRC filtering.
+      </p>
       <h2>Install</h2>
       <pre style={styles.pre}>
         <code>bun add @tscircuit/via-stitch-solver</code>
