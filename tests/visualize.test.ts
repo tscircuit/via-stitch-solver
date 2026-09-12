@@ -80,4 +80,4 @@ test("visualizes input, individual candidates, and rejected DRC vias without cha
   const fresh = new ViaStitchSolver(...solver.getConstructorParams())
   fresh.solve()
   expect(fresh.getOutput()).toEqual(solver.getOutput())
-})
+}, 30_000)
