@@ -50,10 +50,4 @@ test("stitches the overlap of existing same-net copper pours", async () => {
     expect(via.x / 2).toBeCloseTo(Math.round(via.x / 2))
     expect(via.y / 2).toBeCloseTo(Math.round(via.y / 2))
   }
-  const legacySolver = new ViaStitchSolver({
-    circuitJson,
-    options: { viaPitch: 2 },
-  })
-  legacySolver.solve()
-  expect(pitchedVias).toEqual(legacySolver.getOutput().pcbVias)
 })

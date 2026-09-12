@@ -2,7 +2,7 @@ import type React from "react"
 
 const usage = `const solver = new ViaStitchSolver({
   circuitJson,
-  options: { viaPitch: 2, pourEdgeClearance: 0.2 },
+  options: { viaStitchPitch: 2, pourEdgeClearance: 0.2 },
 })
 
 solver.solve()

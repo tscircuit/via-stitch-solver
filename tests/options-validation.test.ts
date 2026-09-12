@@ -1,26 +1,6 @@
 import { expect, test } from "bun:test"
 import { ViaStitchSolver } from "lib/index"
 
-test("accepts viaStitchPitch and preserves viaPitch compatibility", () => {
-  for (const options of [
-    {},
-    { viaStitchPitch: 2 },
-    { viaPitch: 2 },
-    { viaStitchPitch: 2, viaPitch: 2 },
-  ]) {
-    const solver = new ViaStitchSolver({ circuitJson: [], options })
-    solver.solve()
-    expect(solver.getOutput().pcbVias).toEqual([])
-  }
-  expect(
-    () =>
-      new ViaStitchSolver({
-        circuitJson: [],
-        options: { viaStitchPitch: 1, viaPitch: 2 },
-      }),
-  ).toThrow("must match")
-})
-
 test("rejects invalid viaStitchPitch values", () => {
   for (const viaStitchPitch of [0, -1, NaN, Infinity, -Infinity]) {
     expect(
@@ -35,9 +15,9 @@ test("rejects dimensions that cannot produce valid stitching geometry", () => {
     () =>
       new ViaStitchSolver({
         circuitJson: [],
-        options: { viaPitch: 0 },
+        options: { viaStitchPitch: 0 },
       }),
-  ).toThrow("viaPitch")
+  ).toThrow("viaStitchPitch")
 
   expect(
     () =>

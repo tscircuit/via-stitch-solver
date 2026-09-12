@@ -53,6 +53,5 @@ different grid alignment is needed. Generated vias are tented by default.
 `viaStitchPitch` is the positive, finite centre-to-centre grid spacing in
 millimetres, matching the parsed board prop in core. It defaults to `1` when
 omitted. Unit strings such as `"1mm"` should be parsed by the caller before
-passing the numeric value to the solver. The existing `viaPitch` option remains
-supported as a compatibility alias; providing both with different values throws
-an error. Existing callers do not need to migrate.
+passing the numeric value to the solver. `viaStitchPitch` is the only supported
+pitch option.
