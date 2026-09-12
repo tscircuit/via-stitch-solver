@@ -23,6 +23,8 @@ import type {
   ViaStitchSolverOutput,
 } from "../types"
 
+import { removeViasWithDrcErrors } from "./remove-vias-with-drc-errors"
+
 interface CopperPourPairContext {
   sourceNetId: SourceNet["source_net_id"]
   sourceNet?: SourceNet
@@ -202,7 +204,9 @@ const getGridCoordinates = ({
 export class ViaStitchSolver extends BaseSolver {
   private readonly options: ResolvedViaStitchSolverOptions
   private readonly copperPourPairContexts: CopperPourPairContext[]
-  private readonly pcbVias: ViaStitchPcbVia[] = []
+  private pcbVias: ViaStitchPcbVia[] = []
+  private readonly candidateVias: ViaStitchPcbVia[] = []
+  phase: "stitching" | "drc" | "complete" = "stitching"
   private readonly occupiedVias: OccupiedVia[] = []
   private readonly existingPcbViaIds = new Set<string>()
   private readonly stitchingObstacles
@@ -240,22 +244,29 @@ export class ViaStitchSolver extends BaseSolver {
   }
 
   override _step(): void {
-    const copperPourPairContext =
-      this.copperPourPairContexts[this.nextCopperPourPairIndex]
-    if (!copperPourPairContext) {
+    if (this.phase === "complete") return
+    if (this.phase === "drc") {
+      this.pcbVias = removeViasWithDrcErrors(
+        this.input.circuitJson,
+        this.candidateVias,
+      )
+      this.phase = "complete"
       this.solved = true
       this.progress = 1
       return
     }
 
-    this.processCopperPourPair(copperPourPairContext)
-    this.nextCopperPourPairIndex += 1
+    const copperPourPairContext =
+      this.copperPourPairContexts[this.nextCopperPourPairIndex]
+    if (copperPourPairContext) {
+      this.processCopperPourPair(copperPourPairContext)
+      this.nextCopperPourPairIndex += 1
+    }
     this.progress =
-      this.copperPourPairContexts.length === 0
-        ? 1
-        : this.nextCopperPourPairIndex / this.copperPourPairContexts.length
-    this.solved =
-      this.nextCopperPourPairIndex === this.copperPourPairContexts.length
+      this.nextCopperPourPairIndex / (this.copperPourPairContexts.length + 1)
+    if (this.nextCopperPourPairIndex === this.copperPourPairContexts.length) {
+      this.phase = "drc"
+    }
   }
 
   private processCopperPourPair(context: CopperPourPairContext): void {
@@ -350,7 +361,7 @@ export class ViaStitchSolver extends BaseSolver {
             context.sourceNet?.subcircuit_connectivity_map_key,
           is_tented: this.options.isTented,
         } as ViaStitchPcbVia
-        this.pcbVias.push(pcbVia)
+        this.candidateVias.push(pcbVia)
         this.existingPcbViaIds.add(pcbViaId)
         this.occupiedVias.push({ center, radius: viaRadius })
       }
