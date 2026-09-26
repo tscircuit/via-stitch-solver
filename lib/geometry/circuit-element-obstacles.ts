@@ -213,6 +213,78 @@ const doesCircleIntersectObstacle = (
   return Math.hypot(outsideX, outsideY) < radius
 }
 
+const keepoutAppliesToLayers = (
+  keepoutLayers: string[] | undefined,
+  layers: readonly [LayerRef, LayerRef],
+) => {
+  if (!keepoutLayers || keepoutLayers.length === 0) return true
+  if (keepoutLayers.includes("all")) return true
+  return layers.some((layer) =>
+    keepoutLayers.some(
+      (keepoutLayer) => String(keepoutLayer) === String(layer),
+    ),
+  )
+}
+
+const keepoutToObstacle = (
+  keepout: AnyCircuitElement & {
+    shape?: string
+    layers?: string[]
+    center?: Point
+    width?: number
+    height?: number
+    radius?: number
+    rotation?: number
+    outline?: Point[]
+    stroke_width?: number
+  },
+): StitchingObstacle | undefined => {
+  if (keepout.shape === "circle" && keepout.center && keepout.radius != null) {
+    return {
+      kind: "circle",
+      center: keepout.center,
+      radius: keepout.radius,
+    }
+  }
+
+  if (
+    keepout.shape === "rect" &&
+    keepout.center &&
+    keepout.width != null &&
+    keepout.height != null
+  ) {
+    return {
+      kind: "rect",
+      center: keepout.center,
+      width: keepout.width,
+      height: keepout.height,
+      ccwRotation: keepout.rotation ?? 0,
+    }
+  }
+
+  const outline = keepout.outline ?? []
+  if (keepout.shape === "outline" && outline.length >= 3) {
+    return { kind: "polygon", points: outline }
+  }
+  if (keepout.shape === "outline" && outline.length === 2) {
+    const start = outline[0]!
+    const end = outline[1]!
+    const deltaX = end.x - start.x
+    const deltaY = end.y - start.y
+    const length = Math.hypot(deltaX, deltaY)
+    if (length === 0) return undefined
+    return {
+      kind: "rect",
+      center: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
+      width: length,
+      height: keepout.stroke_width ?? 0.2,
+      ccwRotation: (Math.atan2(deltaY, deltaX) * 180) / Math.PI,
+    }
+  }
+
+  return undefined
+}
+
 export const getStitchingObstacles = (
   circuitJson: AnyCircuitElement[],
   layers: readonly [LayerRef, LayerRef],
@@ -235,6 +307,11 @@ export const getStitchingObstacles = (
       return [platedHoleToObstacle(element)]
     }
     if (element.type === "pcb_hole") return [holeToObstacle(element)]
+    if (element.type === "pcb_keepout") {
+      if (!keepoutAppliesToLayers(element.layers, layers)) return []
+      const obstacle = keepoutToObstacle(element)
+      return obstacle ? [obstacle] : []
+    }
     return []
   })
 
