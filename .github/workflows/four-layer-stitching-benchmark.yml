@@ -1,0 +1,34 @@
+name: Stitching comparison
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  compare:
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
+    timeout-minutes: 15
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install
+      - name: Compare identical generated cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${BASE_SHA:-$(git rev-parse HEAD^)}"
+          git worktree add --detach "$RUNNER_TEMP/stitch-base" "$base"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/stitch-base/node_modules"
+          mkdir -p comparison
+          bun scripts/measure-four-layer-stitching.ts "$RUNNER_TEMP/stitch-base" comparison/base.json
+          bun scripts/measure-four-layer-stitching.ts . comparison/head.json
+          bun scripts/check-stitching-comparison.ts comparison/base.json comparison/head.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stitching-comparison
+          path: comparison

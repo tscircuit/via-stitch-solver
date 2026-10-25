@@ -1,6 +1,12 @@
+import {
+  circlePolygon,
+  copperPolygonsTouch,
+  getPourPolygon,
+} from "@tscircuit/circuit-json-util"
 import { BaseSolver } from "@tscircuit/solver-utils"
 import type {
   BRepShape,
+  LayerRef,
   PcbCopperPourBRep,
   PcbTrace,
   PcbVia,
@@ -37,12 +43,13 @@ interface OccupiedVia {
 
 const resolveOptions = (
   options: ViaStitchSolverOptions = {},
+  boardLayers: readonly LayerRef[] = ["top", "bottom"],
 ): ResolvedViaStitchSolverOptions => {
   const resolvedOptions: ResolvedViaStitchSolverOptions = {
     sourceNetIds: options.sourceNetIds
       ? new Set(options.sourceNetIds)
       : undefined,
-    layers: options.layers ?? ["top", "bottom"],
+    layers: options.layers ?? boardLayers,
     viaStitchPitch: options.viaStitchPitch ?? 1,
     viaHoleDiameter: options.viaHoleDiameter ?? 0.3,
     viaOuterDiameter: options.viaOuterDiameter ?? 0.6,
@@ -86,7 +93,11 @@ const resolveOptions = (
   if (resolvedOptions.viaHoleDiameter >= resolvedOptions.viaOuterDiameter) {
     throw new Error("viaHoleDiameter must be smaller than viaOuterDiameter")
   }
-  if (String(resolvedOptions.layers[0]) === String(resolvedOptions.layers[1])) {
+  if (
+    resolvedOptions.layers.length < 2 ||
+    new Set(resolvedOptions.layers.map(String)).size !==
+      resolvedOptions.layers.length
+  ) {
     throw new Error("layers must contain two distinct PCB layers")
   }
 
@@ -125,22 +136,27 @@ const getCopperPourPairContexts = (
     poursBySourceNetId.set(element.source_net_id, sourceNetPours)
   }
 
-  const [fromLayer, toLayer] = options.layers
   const contexts: CopperPourPairContext[] = []
   for (const [sourceNetId, sourceNetPours] of poursBySourceNetId) {
-    const fromLayerPours = sourceNetPours.filter(
-      (copperPour) => String(copperPour.layer) === String(fromLayer),
-    )
-    const toLayerPours = sourceNetPours.filter(
-      (copperPour) => String(copperPour.layer) === String(toLayer),
-    )
-    if (fromLayerPours.length === 0 || toLayerPours.length === 0) continue
-    contexts.push({
-      sourceNetId,
-      sourceNet: sourceNetsById.get(sourceNetId),
-      fromLayerPours,
-      toLayerPours,
-    })
+    for (let i = 0; i < options.layers.length; i++) {
+      for (let j = i + 1; j < options.layers.length; j++) {
+        const fromLayer = options.layers[i]!,
+          toLayer = options.layers[j]!
+        const fromLayerPours = sourceNetPours.filter(
+          (copperPour) => String(copperPour.layer) === String(fromLayer),
+        )
+        const toLayerPours = sourceNetPours.filter(
+          (copperPour) => String(copperPour.layer) === String(toLayer),
+        )
+        if (fromLayerPours.length === 0 || toLayerPours.length === 0) continue
+        contexts.push({
+          sourceNetId,
+          sourceNet: sourceNetsById.get(sourceNetId),
+          fromLayerPours,
+          toLayerPours,
+        })
+      }
+    }
   }
 
   return contexts
@@ -161,18 +177,24 @@ const isTooCloseToOccupiedVia = ({
   radius,
   occupiedVias,
   minimumViaSeparation,
+  obstacleClearance,
 }: {
   center: Point
   radius: number
   occupiedVias: OccupiedVia[]
   minimumViaSeparation: number
+  obstacleClearance: number
 }) =>
   occupiedVias.some(
     (occupiedVia) =>
       Math.hypot(
         center.x - occupiedVia.center.x,
         center.y - occupiedVia.center.y,
-      ) < Math.max(minimumViaSeparation, radius + occupiedVia.radius),
+      ) <
+      Math.max(
+        minimumViaSeparation,
+        radius + occupiedVia.radius + obstacleClearance,
+      ),
   )
 
 const getGridCoordinates = ({
@@ -200,6 +222,11 @@ const getGridCoordinates = ({
 }
 
 export class ViaStitchSolver extends BaseSolver {
+  private readonly viaLayers: readonly LayerRef[]
+  private readonly pourPolygons: Array<{
+    net: string | undefined
+    polygon: ReturnType<typeof getPourPolygon>
+  }>
   private readonly options: ResolvedViaStitchSolverOptions
   private readonly copperPourPairContexts: CopperPourPairContext[]
   private readonly pcbVias: ViaStitchPcbVia[] = []
@@ -211,11 +238,34 @@ export class ViaStitchSolver extends BaseSolver {
 
   constructor(private readonly input: ViaStitchSolverInput) {
     super()
-    this.options = resolveOptions(input.options)
+    const board = input.circuitJson.find(
+      (element) => element.type === "pcb_board",
+    )
+    const layerCount = board?.num_layers ?? 2
+    this.viaLayers = board
+      ? [
+          "top",
+          ...Array.from(
+            { length: Math.max(0, layerCount - 2) },
+            (_, i) => `inner${i + 1}` as LayerRef,
+          ),
+          "bottom",
+        ]
+      : (input.options?.layers ?? ["top", "bottom"])
+    this.options = resolveOptions(input.options, this.viaLayers)
     this.copperPourPairContexts = getCopperPourPairContexts(input, this.options)
+    this.pourPolygons = input.circuitJson.flatMap((element) =>
+      element.type === "pcb_copper_pour" &&
+      this.viaLayers.includes(element.layer) &&
+      this.copperPourPairContexts.some(
+        (context) => context.sourceNetId !== element.source_net_id,
+      )
+        ? [{ net: element.source_net_id, polygon: getPourPolygon(element) }]
+        : [],
+    )
     this.stitchingObstacles = getStitchingObstacles(
       input.circuitJson,
-      this.options.layers,
+      this.viaLayers,
     )
     const fallbackViaRadius = this.options.viaOuterDiameter / 2
 
@@ -259,7 +309,9 @@ export class ViaStitchSolver extends BaseSolver {
   }
 
   private processCopperPourPair(context: CopperPourPairContext): void {
-    const [fromLayer, toLayer] = this.options.layers
+    const foreignPours = this.pourPolygons.filter(
+      (pour) => pour.net !== context.sourceNetId,
+    )
     const fromLayerShapes = context.fromLayerPours.map(
       (copperPour) => copperPour.brep_shape,
     )
@@ -308,6 +360,7 @@ export class ViaStitchSolver extends BaseSolver {
             radius: viaRadius,
             occupiedVias: this.occupiedVias,
             minimumViaSeparation: this.options.minimumViaSeparation,
+            obstacleClearance: this.options.obstacleClearance,
           }) ||
           doesViaIntersectStitchingObstacle({
             center,
@@ -328,6 +381,17 @@ export class ViaStitchSolver extends BaseSolver {
           continue
         }
 
+        // A full-stack barrel must clear foreign copper on every traversed layer.
+        const envelope = foreignPours.length
+          ? circlePolygon(center, requiredObstacleRadius)
+          : undefined
+        if (
+          envelope &&
+          foreignPours.some((pour) =>
+            copperPolygonsTouch(envelope, pour.polygon),
+          )
+        )
+          continue
         let pcbViaId = `via_stitch_via_${this.nextViaId++}`
         while (this.existingPcbViaIds.has(pcbViaId)) {
           pcbViaId = `via_stitch_via_${this.nextViaId++}`
@@ -340,9 +404,9 @@ export class ViaStitchSolver extends BaseSolver {
           y,
           hole_diameter: this.options.viaHoleDiameter,
           outer_diameter: this.options.viaOuterDiameter,
-          layers: [fromLayer, toLayer],
-          from_layer: fromLayer,
-          to_layer: toLayer,
+          layers: [...this.viaLayers],
+          from_layer: this.viaLayers[0],
+          to_layer: this.viaLayers.at(-1),
           source_net_id: context.sourceNetId,
           subcircuit_id: referencePour.subcircuit_id,
           pcb_group_id: referencePour.pcb_group_id,

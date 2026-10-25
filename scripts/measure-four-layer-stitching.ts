@@ -70,6 +70,7 @@ for (const sample of cases) {
         ).length
   reports.push({
     name: sample.name,
+    inputSha256: createHash("sha256").update(before).digest("hex"),
     completed: solver.solved && !solver.failed,
     vias: vias.length,
     wrongSpan,

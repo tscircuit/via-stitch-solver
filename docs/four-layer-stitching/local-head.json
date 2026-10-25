@@ -1,0 +1,60 @@
+{
+  "scope": "Generated synthetic stitching cases only; not a complete PCB routing benchmark",
+  "bun": "1.4.0",
+  "cases": [
+    {
+      "name": "inner-plane-pair",
+      "inputSha256": "d7cbf2978ee66f833e6690a4225386c530bc8407a5d63fa22b80a2e49bed4ae7",
+      "completed": true,
+      "vias": 36,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "202cce31a033578559bab0bda9f1ad42a57c76f1e5b94bfa7fce964ebf16cbd9",
+      "medianMs": 11.619991999999982,
+      "trialsMs": [
+        3.721798999999976, 3.922361999999964, 7.529458999999974,
+        7.88468499999999, 7.969642999999962, 15.270341000000002,
+        15.335735999999997, 15.980086999999997, 16.214080999999993,
+        65.07627099999999
+      ]
+    },
+    {
+      "name": "outer-pair-inner-copper",
+      "inputSha256": "c77bee78b377d38046d55ff4b73fb3762f78333cd9407837256b3fa78337a5a1",
+      "completed": true,
+      "vias": 36,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "202cce31a033578559bab0bda9f1ad42a57c76f1e5b94bfa7fce964ebf16cbd9",
+      "medianMs": 3.591479000000021,
+      "trialsMs": [
+        1.8318209999999908, 1.9193630000000326, 2.7277410000000373,
+        3.3695699999999533, 3.381167000000005, 3.801791000000037,
+        6.727539999999976, 9.140708000000018, 17.556411999999966,
+        18.205921999999987
+      ]
+    },
+    {
+      "name": "two-layer-control",
+      "inputSha256": "18bdc28519bd4eb55c4765f7d3f8b14fccf4e4ef3ba27a85e1020431e631b301",
+      "completed": true,
+      "vias": 49,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "8a40955870166e3dd63f537af2fbae939771f5e7318e204406a5eb8ed152e135",
+      "medianMs": 0.4389769999999942,
+      "trialsMs": [
+        0.35802000000001044, 0.38191499999999223, 0.40005400000001146,
+        0.40037300000000187, 0.43699900000001435, 0.440954999999974,
+        0.45493499999997766, 0.48092500000001337, 0.492082000000039,
+        4.4737140000000295
+      ]
+    }
+  ]
+}
