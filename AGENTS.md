@@ -1,0 +1,4 @@
+- Every PR must include an inspected visual snapshot and benchmark-effect analysis.
+- Compare the same inputs, options, versions and budgets on base and head. Report completion, safety checks, unchanged inputs, timing and any lost cases; identify shared hardware measurements.
+- Run the full existing suite. Explain geometry changes and inspect updated snapshots.
+- Do not merge without reporting benchmark effects. Reproduction PRs may deliberately fail their new regression; identify that failure explicitly.
