@@ -27,9 +27,20 @@ interface PolygonObstacle {
   points: Point[]
 }
 
-type StitchingObstacle = CircleObstacle | RectObstacle | PolygonObstacle
+interface SegmentObstacle {
+  kind: "segment"
+  start: Point
+  end: Point
+  radius: number
+}
 
-const layerMatches = (layer: LayerRef, layers: readonly [LayerRef, LayerRef]) =>
+type StitchingObstacle =
+  | CircleObstacle
+  | RectObstacle
+  | PolygonObstacle
+  | SegmentObstacle
+
+const layerMatches = (layer: LayerRef, layers: readonly LayerRef[]) =>
   layers.some((candidateLayer) => String(candidateLayer) === String(layer))
 
 const componentToObstacle = (
@@ -182,6 +193,12 @@ const doesCircleIntersectObstacle = (
   radius: number,
   obstacle: StitchingObstacle,
 ) => {
+  if (obstacle.kind === "segment") {
+    return (
+      getDistanceToSegment(center, obstacle.start, obstacle.end) <
+      radius + obstacle.radius
+    )
+  }
   if (obstacle.kind === "circle") {
     return (
       Math.hypot(center.x - obstacle.center.x, center.y - obstacle.center.y) <
@@ -215,7 +232,7 @@ const doesCircleIntersectObstacle = (
 
 export const getStitchingObstacles = (
   circuitJson: AnyCircuitElement[],
-  layers: readonly [LayerRef, LayerRef],
+  layers: readonly LayerRef[],
 ): StitchingObstacle[] =>
   circuitJson.flatMap((element) => {
     if (
@@ -233,6 +250,28 @@ export const getStitchingObstacles = (
       element.layers.some((layer) => layerMatches(layer, layers))
     ) {
       return [platedHoleToObstacle(element)]
+    }
+    if (element.type === "pcb_trace") {
+      const segments: StitchingObstacle[] = []
+      for (let i = 1; i < element.route.length; i++) {
+        const start = element.route[i - 1]!,
+          end = element.route[i]!
+        if (
+          start.route_type !== "wire" ||
+          end.route_type !== "wire" ||
+          start.layer !== end.layer ||
+          !layerMatches(start.layer, layers)
+        )
+          continue
+        // Conservatively avoid every trace, including same-net copper.
+        segments.push({
+          kind: "segment",
+          start,
+          end,
+          radius: Math.max(start.width, end.width) / 2,
+        })
+      }
+      return segments
     }
     if (element.type === "pcb_hole") return [holeToObstacle(element)]
     return []

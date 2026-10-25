@@ -9,8 +9,9 @@ import type {
 export interface ViaStitchSolverOptions {
   /** Process only copper pours connected to these source nets. */
   sourceNetIds?: Array<SourceNet["source_net_id"]>
-  /** Layers whose same-net copper overlap should be stitched. */
-  layers?: readonly [LayerRef, LayerRef]
+  /** Eligible pour layers. Defaults to the board stack; all same-net pairs are considered.
+   * Physical via spans still cover the full board stack when pcb_board is present. */
+  layers?: readonly LayerRef[]
   /** Centre-to-centre spacing of the via grid in millimetres. Defaults to 1 mm. */
   viaStitchPitch?: number
   viaHoleDiameter?: number
@@ -43,7 +44,7 @@ export interface ViaStitchSolverOutput {
 
 export interface ResolvedViaStitchSolverOptions {
   sourceNetIds?: Set<SourceNet["source_net_id"]>
-  layers: readonly [LayerRef, LayerRef]
+  layers: readonly LayerRef[]
   viaStitchPitch: number
   viaHoleDiameter: number
   viaOuterDiameter: number

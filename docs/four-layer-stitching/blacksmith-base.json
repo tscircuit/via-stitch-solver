@@ -1,0 +1,59 @@
+{
+  "scope": "Generated synthetic stitching cases only; not a complete PCB routing benchmark",
+  "bun": "1.4.0",
+  "cases": [
+    {
+      "name": "inner-plane-pair",
+      "inputSha256": "d7cbf2978ee66f833e6690a4225386c530bc8407a5d63fa22b80a2e49bed4ae7",
+      "completed": true,
+      "vias": 0,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "medianMs": 0.029901000000002398,
+      "trialsMs": [
+        0.009619999999998186, 0.013919999999998822, 0.019640000000002544,
+        0.020680999999996175, 0.021181000000005668, 0.03862099999999913,
+        0.04282100000000355, 0.04692100000000465, 0.048662000000000205,
+        0.06516200000000083
+      ]
+    },
+    {
+      "name": "outer-pair-inner-copper",
+      "inputSha256": "c77bee78b377d38046d55ff4b73fb3762f78333cd9407837256b3fa78337a5a1",
+      "completed": true,
+      "vias": 49,
+      "wrongSpan": 49,
+      "traceContacts": 7,
+      "pourContacts": 6,
+      "inputUnchanged": true,
+      "outputSha256": "8a40955870166e3dd63f537af2fbae939771f5e7318e204406a5eb8ed152e135",
+      "medianMs": 1.1229595000000003,
+      "trialsMs": [
+        0.4952129999999926, 0.5139729999999929, 0.6482170000000025,
+        1.0128059999999977, 1.0208470000000034, 1.2250719999999973, 1.228313,
+        1.2974350000000001, 1.3156350000000003, 4.69046500000001
+      ]
+    },
+    {
+      "name": "two-layer-control",
+      "inputSha256": "18bdc28519bd4eb55c4765f7d3f8b14fccf4e4ef3ba27a85e1020431e631b301",
+      "completed": true,
+      "vias": 49,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "8a40955870166e3dd63f537af2fbae939771f5e7318e204406a5eb8ed152e135",
+      "medianMs": 0.6286369999999977,
+      "trialsMs": [
+        0.49607299999999555, 0.5028329999999954, 0.5115140000000054,
+        0.553875000000005, 0.6229369999999932, 0.6343370000000021,
+        0.6440570000000037, 0.9705060000000003, 1.0280869999999993,
+        2.182537999999994
+      ]
+    }
+  ]
+}

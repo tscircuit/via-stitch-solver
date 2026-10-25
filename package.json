@@ -42,6 +42,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@tscircuit/solver-utils": "^0.0.19"
+    "@tscircuit/solver-utils": "^0.0.19",
+    "@tscircuit/circuit-json-util": "0.0.123"
   }
 }
