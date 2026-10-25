@@ -48,4 +48,4 @@ existing tests and fails the added regression. The fix passes all eleven tests
 (895 assertions), with no functional assertions weakened. Six updated visual
 snapshots were inspected; trace and foreign-pour keepouts remove unsafe sites.
 The Blacksmith workflow repeats the same paired safety/geometry comparison on
-every PR and uploads the raw timings and hashes. Hosted results remain pending.
+every PR and uploads the raw timings and hashes. Hosted comparison [40219107299](https://github.com/tscircuit/via-stitch-solver/actions/runs/40219107299) is green. On Blacksmith 8-vCPU ARM / Bun 1.4.0, medians (base → fix) are 0.030 → 5.548 ms for the inner pair, 1.123 → 3.303 ms for the outer pair with foreign copper, and 0.629 → 0.714 ms for the unchanged two-layer control. All three cases finish, all input hashes match, the fixed four-layer outputs have zero span/contact findings, and the control output hash is identical. The raw hosted reports are alongside this document. Full unit CI [40219107257](https://github.com/tscircuit/via-stitch-solver/actions/runs/40219107257) also passes.

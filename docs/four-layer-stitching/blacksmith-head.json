@@ -1,0 +1,60 @@
+{
+  "scope": "Generated synthetic stitching cases only; not a complete PCB routing benchmark",
+  "bun": "1.4.0",
+  "cases": [
+    {
+      "name": "inner-plane-pair",
+      "inputSha256": "d7cbf2978ee66f833e6690a4225386c530bc8407a5d63fa22b80a2e49bed4ae7",
+      "completed": true,
+      "vias": 36,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "202cce31a033578559bab0bda9f1ad42a57c76f1e5b94bfa7fce964ebf16cbd9",
+      "medianMs": 5.548067000000003,
+      "trialsMs": [
+        3.2286259999999913, 3.2993079999999964, 3.3070069999999987,
+        3.6154960000000074, 3.8917629999999974, 7.204371000000009,
+        7.413875999999988, 8.481464999999986, 9.423969999999997,
+        12.64961599999998
+      ]
+    },
+    {
+      "name": "outer-pair-inner-copper",
+      "inputSha256": "c77bee78b377d38046d55ff4b73fb3762f78333cd9407837256b3fa78337a5a1",
+      "completed": true,
+      "vias": 36,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "202cce31a033578559bab0bda9f1ad42a57c76f1e5b94bfa7fce964ebf16cbd9",
+      "medianMs": 3.3030475000000195,
+      "trialsMs": [
+        2.9339970000000335, 2.9382980000000316, 3.161684000000008,
+        3.206524999999999, 3.2325050000000033, 3.3735900000000356,
+        3.4160109999999975, 3.4488110000000063, 6.207464999999985,
+        6.32928800000002
+      ]
+    },
+    {
+      "name": "two-layer-control",
+      "inputSha256": "18bdc28519bd4eb55c4765f7d3f8b14fccf4e4ef3ba27a85e1020431e631b301",
+      "completed": true,
+      "vias": 49,
+      "wrongSpan": 0,
+      "traceContacts": 0,
+      "pourContacts": 0,
+      "inputUnchanged": true,
+      "outputSha256": "8a40955870166e3dd63f537af2fbae939771f5e7318e204406a5eb8ed152e135",
+      "medianMs": 0.7139084999999739,
+      "trialsMs": [
+        0.5316339999999968, 0.5696149999999989, 0.6626380000000154,
+        0.698317999999972, 0.6989979999999605, 0.7288189999999872,
+        0.7430800000000204, 0.7698609999999917, 0.7872810000000072,
+        0.7888409999999908
+      ]
+    }
+  ]
+}
