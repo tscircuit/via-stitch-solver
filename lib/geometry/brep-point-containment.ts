@@ -78,7 +78,36 @@ export const isViaAnnulusInsideShapeUnion = ({
       y: center.y + Math.sin(angle) * radius,
     })
   }
-  return samplePoints.every((samplePoint) =>
-    isPointInShapeUnion(samplePoint, shapes),
-  )
+  if (
+    !samplePoints.every((samplePoint) =>
+      isPointInShapeUnion(samplePoint, shapes),
+    )
+  ) {
+    return false
+  }
+
+  for (const shape of shapes) {
+    for (const innerRing of shape.inner_rings) {
+      if (innerRing.vertices.length < 3) continue
+      const isRingEnclosedInAnnulus = innerRing.vertices.every(
+        (vertex) =>
+          Math.hypot(vertex.x - center.x, vertex.y - center.y) <
+          radius - POINT_EPSILON,
+      )
+      if (!isRingEnclosedInAnnulus) continue
+      const ringCentroid = {
+        x:
+          innerRing.vertices.reduce((sum, vertex) => sum + vertex.x, 0) /
+          innerRing.vertices.length,
+        y:
+          innerRing.vertices.reduce((sum, vertex) => sum + vertex.y, 0) /
+          innerRing.vertices.length,
+      }
+      if (!isPointInShapeUnion(ringCentroid, shapes)) {
+        return false
+      }
+    }
+  }
+
+  return true
 }
