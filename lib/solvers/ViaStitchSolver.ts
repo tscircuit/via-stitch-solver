@@ -187,14 +187,21 @@ const getGridCoordinates = ({
   pitch: number
 }) => {
   const coordinates: number[] = []
-  const firstGridIndex = Math.ceil((minimum - origin) / pitch)
-  const lastGridIndex = Math.floor((maximum - origin) / pitch)
+  // The index bounds come from a division whose rounding does not match
+  // the origin + index * pitch multiplication below, so a boundary index
+  // can be off by one. Widen by one on each side and test the emitted
+  // coordinate itself so on-grid boundary points are not dropped.
+  const firstGridIndex = Math.ceil((minimum - origin) / pitch) - 1
+  const lastGridIndex = Math.floor((maximum - origin) / pitch) + 1
   for (
     let gridIndex = firstGridIndex;
     gridIndex <= lastGridIndex;
     gridIndex++
   ) {
-    coordinates.push(origin + gridIndex * pitch)
+    const coordinate = origin + gridIndex * pitch
+    if (coordinate >= minimum && coordinate <= maximum) {
+      coordinates.push(coordinate)
+    }
   }
   return coordinates
 }
